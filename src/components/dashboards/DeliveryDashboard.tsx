@@ -68,9 +68,9 @@ const DeliveryDashboard = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display font-bold">Delivery Dashboard</h1>
-          <p className="text-muted-foreground">Manage your deliveries</p>
+        <div className="text-white">
+          <h1 className="text-2xl font-display font-bold">Your Hunger, <span className="text-primary italic">Our Urgency.</span></h1>
+          <p className="text-white/60">Fresh food, fast delivery. Dorm2Door is Yours</p>
         </div>
         <Button onClick={toggleFree} variant={worker.is_free ? 'default' : 'outline'}>
           {worker.is_free ? "I'm Free ✅" : "I'm Busy 🔴"}

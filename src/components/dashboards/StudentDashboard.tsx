@@ -205,9 +205,17 @@ const StudentDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-bold text-white">Hello, {profile?.full_name || 'Student'}!</h1>
-        <p className="text-white/60">What are you craving today?</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-white">Your Hunger, <span className="text-primary">Our Urgency.</span></h1>
+          <p className="text-white/60">Hello, {profile?.full_name || 'Student'}! We deliver more than food.</p>
+        </div>
+        <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+          <p className="text-xs text-white/50 text-center font-medium">
+            Need something delivered ASAP? <br />
+            <span className="text-primary tracking-wide uppercase font-bold text-[10px]">Dorm2Door is Yours</span>
+          </p>
+        </div>
       </div>
 
       {!selectedCafe ? (
@@ -296,7 +304,7 @@ const StudentDashboard = () => {
 
           {/* Checkout Dialog */}
           <Dialog open={orderDialog} onOpenChange={setOrderDialog}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] overflow-y-auto bg-[#1A1F2C] border-white/10 text-white">
               <DialogHeader><DialogTitle className="font-display">Complete Your Order</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -364,7 +372,7 @@ const StudentDashboard = () => {
 
       {/* Payment Upload Dialog */}
       <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-        <DialogContent>
+        <DialogContent className="bg-[#1A1F2C] border-white/10 text-white">
           <DialogHeader><DialogTitle className="font-display">Upload Payment Screenshot</DialogTitle></DialogHeader>
           {currentOrderForPayment && (
             <div className="space-y-4">

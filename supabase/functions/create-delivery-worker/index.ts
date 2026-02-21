@@ -47,7 +47,10 @@ serve(async (req: Request) => {
         });
 
         if (createError) {
-            return new Response(JSON.stringify({ error: createError.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            return new Response(JSON.stringify({ error: createError.message }), {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
         }
 
         const workerId = userData.user.id;
@@ -68,7 +71,10 @@ serve(async (req: Request) => {
         }).select().single();
 
         if (workerError) {
-            return new Response(JSON.stringify({ error: workerError.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            return new Response(JSON.stringify({ error: workerError.message }), {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
         }
 
         return new Response(JSON.stringify({

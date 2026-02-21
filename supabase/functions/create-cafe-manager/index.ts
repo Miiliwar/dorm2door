@@ -14,6 +14,8 @@ serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  console.log('Function create-cafe-manager started');
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -47,7 +49,10 @@ serve(async (req: Request) => {
     });
 
     if (createError) {
-      return new Response(JSON.stringify({ error: createError.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: createError.message }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const managerId = userData.user.id;
@@ -67,7 +72,10 @@ serve(async (req: Request) => {
     }).select().single();
 
     if (cafeError) {
-      return new Response(JSON.stringify({ error: cafeError.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: cafeError.message }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // Add demo menu items for the new cafe

@@ -225,14 +225,14 @@ const CafeManagerDashboard = () => {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-display font-bold text-white">{cafe.name}</h1>
-          <p className="text-white/60">Manage your menu and orders</p>
+          <p className="text-white/60">Your Hunger, <span className="text-primary font-bold italic">Our Urgency.</span></p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setPaymentDialog(true)} className="border-white/20 text-white hover:bg-white/10">💳 Payment Info</Button>
       </div>
 
       {/* Payment Info Dialog */}
       <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-        <DialogContent>
+        <DialogContent className="bg-[#1A1F2C] border-white/10 text-white">
           <DialogHeader><DialogTitle className="font-display">Your Payment Accounts</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Students will see these when paying for orders.</p>
           <div className="space-y-3">
@@ -246,7 +246,7 @@ const CafeManagerDashboard = () => {
 
       {/* Assign Delivery Dialog - shows ALL info about the order */}
       <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-[#1A1F2C] border-white/10 text-white text-white">
           <DialogHeader><DialogTitle className="font-display flex items-center gap-2"><Truck className="h-5 w-5" /> Assign Delivery Worker</DialogTitle></DialogHeader>
           {selectedOrderForAssign && (
             <div className="space-y-4">
@@ -348,7 +348,7 @@ const CafeManagerDashboard = () => {
           <h2 className="text-lg font-display font-bold text-white">Menu Items</h2>
           <Dialog open={menuDialog} onOpenChange={setMenuDialog}>
             <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add Item</Button></DialogTrigger>
-            <DialogContent>
+            <DialogContent className="bg-[#1A1F2C] border-white/10 text-white text-white">
               <DialogHeader><DialogTitle className="font-display">Add Menu Item</DialogTitle></DialogHeader>
               <div className="space-y-3">
                 <div><Label>Name</Label><Input value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} /></div>

@@ -31,15 +31,17 @@ const Landing = () => {
         <section className="container mx-auto px-4 py-20 md:py-32 text-center">
           <div className="animate-fade-in max-w-4xl mx-auto">
             <span className="inline-block px-4 py-1.5 rounded-full bg-primary/20 text-primary text-sm font-semibold mb-8 backdrop-blur-sm border border-primary/20">
-              🎓 Built Specifically for Campus Life
+              🎓 Need something delivered ASAP? Dorm2Door is Yours For faster service.
             </span>
             <h1 className="text-5xl md:text-8xl font-display font-bold tracking-tight mb-8 leading-[1.1]">
-              Campus Food,
+              Your Hunger,
               <br />
-              <span className="text-primary drop-shadow-sm">Delivered Fast.</span>
+              <span className="text-primary drop-shadow-sm">Our Urgency.</span>
             </h1>
-            <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-12 leading-relaxed">
-              Skip the lines. Order from any campus cafe, track in real-time, and get your food delivered right to your dorm by fellow students.
+            <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-12 leading-relaxed italic">
+              "Fresh food, fast delivery. We Deliver More Than Food."
+              <br />
+              <span className="not-italic text-sm md:text-base mt-4 block text-white/60">Skip the lines. Order from any campus cafe, track in real-time, and get your food delivered right to your dorm.</span>
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link to="/signup" className="w-full sm:w-auto">
