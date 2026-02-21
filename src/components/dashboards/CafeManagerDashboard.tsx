@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ShoppingBag, Clock, CheckCircle, XCircle, Eye, EyeOff, Truck } from 'lucide-react';
+import { Plus, ShoppingBag, Clock, CheckCircle, XCircle, Eye, EyeOff, Truck, Phone, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CafeManagerDashboard = () => {
@@ -27,6 +27,7 @@ const CafeManagerDashboard = () => {
   const [assignDialog, setAssignDialog] = useState(false);
   const [selectedOrderForAssign, setSelectedOrderForAssign] = useState<any>(null);
   const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [assignedWorkers, setAssignedWorkers] = useState<Record<string, { name: string; phone: string }>>({});
 
   const fetchData = async () => {
     if (!user) return;
@@ -40,10 +41,32 @@ const CafeManagerDashboard = () => {
         supabase.from('menu_items').select('*').eq('cafe_id', cafeData.id).order('created_at', { ascending: false }),
         supabase.from('orders').select('*, order_items(*, menu_items(name))').eq('cafe_id', cafeData.id).order('created_at', { ascending: false }),
         supabase.from('delivery_workers').select('*').eq('is_free', true),
-        supabase.from('profiles').select('user_id, full_name'),
+        supabase.from('profiles').select('user_id, full_name, phone'),
       ]);
       if (menuRes.data) setMenuItems(menuRes.data);
-      if (ordersRes.data) setOrders(ordersRes.data);
+      if (ordersRes.data) {
+        setOrders(ordersRes.data);
+        // Fetch assigned worker info for out_for_delivery orders
+        const deliveryOrders = ordersRes.data.filter(o => o.status === 'out_for_delivery');
+        if (deliveryOrders.length > 0) {
+          const orderIds = deliveryOrders.map(o => o.id);
+          const { data: assignments } = await supabase
+            .from('delivery_assignments')
+            .select('order_id, worker_id, delivery_workers!inner(user_id)')
+            .in('order_id', orderIds);
+          if (assignments && assignments.length > 0 && profilesRes.data) {
+            const infoMap: Record<string, { name: string; phone: string }> = {};
+            for (const a of assignments) {
+              const workerUserId = (a as any).delivery_workers?.user_id;
+              const prof = profilesRes.data.find((p: any) => p.user_id === workerUserId);
+              if (prof) {
+                infoMap[a.order_id] = { name: prof.full_name || 'Worker', phone: prof.phone || 'N/A' };
+              }
+            }
+            setAssignedWorkers(infoMap);
+          }
+        }
+      }
       if (workersRes.data) setFreeWorkers(workersRes.data);
       if (profilesRes.data) setAllProfiles(profilesRes.data);
     }
@@ -453,6 +476,22 @@ const CafeManagerDashboard = () => {
 
                   {order.status === 'ready' && order.delivery_type === 'pickup' && (
                     <p className="text-xs text-amber-400 font-medium">🔔 Student can pick up now</p>
+                  )}
+
+                  {order.status === 'out_for_delivery' && assignedWorkers[order.id] && (
+                    <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                      <p className="text-xs font-bold text-emerald-400 mb-1">🚚 Assigned Delivery Worker:</p>
+                      <p className="text-sm text-white flex items-center gap-1.5">
+                        <UserIcon className="h-3.5 w-3.5 text-emerald-400" />
+                        {assignedWorkers[order.id].name}
+                      </p>
+                      <p className="text-sm text-white flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                        <a href={`tel:${assignedWorkers[order.id].phone}`} className="underline hover:text-emerald-400 transition-colors">
+                          {assignedWorkers[order.id].phone}
+                        </a>
+                      </p>
+                    </div>
                   )}
                 </div>
               ))}
