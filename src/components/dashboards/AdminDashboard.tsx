@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Store, Users, ShoppingBag, Truck, Plus, Trash2 } from 'lucide-react';
+import { Store, Users, ShoppingBag, Truck, Plus, Trash2, Phone, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AdminDashboard = () => {
@@ -17,6 +17,11 @@ const AdminDashboard = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+
+  // Delivery worker form state
+  const [newWorker, setNewWorker] = useState({ name: '', email: '', password: '', phone: '' });
+  const [workerDialogOpen, setWorkerDialogOpen] = useState(false);
+  const [creatingWorker, setCreatingWorker] = useState(false);
 
   const fetchData = async () => {
     const [cafesRes, ordersRes, workersRes, profilesRes] = await Promise.all([
@@ -38,6 +43,12 @@ const AdminDashboard = () => {
     if (!userId) return 'Unassigned';
     const p = profiles.find(pr => pr.user_id === userId);
     return p?.full_name || 'Unknown';
+  };
+
+  const getProfilePhone = (userId: string | null) => {
+    if (!userId) return '';
+    const p = profiles.find(pr => pr.user_id === userId);
+    return p?.phone || '';
   };
 
   const createCafeWithManager = async () => {
@@ -67,6 +78,33 @@ const AdminDashboard = () => {
       toast.error(err.message || 'Failed to create cafe');
     }
     setCreating(false);
+  };
+
+  const createDeliveryWorker = async () => {
+    if (!newWorker.name || !newWorker.email || !newWorker.password) {
+      toast.error('Please fill worker name, email and password');
+      return;
+    }
+    setCreatingWorker(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-delivery-worker', {
+        body: {
+          worker_name: newWorker.name,
+          worker_email: newWorker.email,
+          worker_password: newWorker.password,
+          worker_phone: newWorker.phone,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) { toast.error(data.error); setCreatingWorker(false); return; }
+      toast.success(`Delivery worker "${newWorker.name}" created with email ${newWorker.email}`);
+      setWorkerDialogOpen(false);
+      setNewWorker({ name: '', email: '', password: '', phone: '' });
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create delivery worker');
+    }
+    setCreatingWorker(false);
   };
 
   const deleteCafe = async (id: string) => {
@@ -156,6 +194,64 @@ const AdminDashboard = () => {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Delivery Workers Management */}
+      <div className="card-glass rounded-xl">
+        <div className="flex items-center justify-between p-5 pb-3">
+          <h2 className="text-lg font-display font-bold text-white">Delivery Workers</h2>
+          <Dialog open={workerDialogOpen} onOpenChange={setWorkerDialogOpen}>
+            <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add Worker</Button></DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle className="font-display">Add New Delivery Worker</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div><Label>Full Name *</Label><Input value={newWorker.name} onChange={e => setNewWorker({ ...newWorker, name: e.target.value })} placeholder="e.g. Abebe Kebede" /></div>
+                  <div><Label>Phone Number</Label><Input value={newWorker.phone} onChange={e => setNewWorker({ ...newWorker, phone: e.target.value })} placeholder="e.g. 0911234567" /></div>
+                </div>
+                <div className="border-t border-border pt-3 space-y-2">
+                  <p className="text-sm font-semibold text-muted-foreground">Login Credentials</p>
+                  <div><Label>Email *</Label><Input type="email" value={newWorker.email} onChange={e => setNewWorker({ ...newWorker, email: e.target.value })} placeholder="worker@email.com" /></div>
+                  <div><Label>Password *</Label><Input type="password" value={newWorker.password} onChange={e => setNewWorker({ ...newWorker, password: e.target.value })} placeholder="Min 6 characters" /></div>
+                </div>
+                <Button onClick={createDeliveryWorker} className="w-full" disabled={creatingWorker}>
+                  {creatingWorker ? 'Creating...' : 'Create Delivery Worker Account'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+        <div className="px-5 pb-5">
+          {workers.length === 0 ? (
+            <p className="text-center text-white/40 py-8">No delivery workers yet. Add your first worker!</p>
+          ) : (
+            <div className="space-y-3">
+              {workers.map(worker => (
+                <div key={worker.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-sky-500/20 flex items-center justify-center">
+                      <UserIcon className="h-4 w-4 text-sky-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-white">{getProfileName(worker.user_id)}</p>
+                      <div className="flex items-center gap-3">
+                        {getProfilePhone(worker.user_id) && (
+                          <p className="text-xs text-white/50 flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> {getProfilePhone(worker.user_id)}
+                          </p>
+                        )}
+                        <p className="text-xs text-white/40">{worker.total_deliveries} deliveries · ⭐ {worker.rating || 'New'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full ${worker.is_free ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                    {worker.is_free ? 'Available' : 'On Delivery'}
+                  </span>
                 </div>
               ))}
             </div>
