@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, ShoppingBag, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, ShoppingBag, Clock, CheckCircle, XCircle, Eye, EyeOff, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CafeManagerDashboard = () => {
@@ -15,28 +17,36 @@ const CafeManagerDashboard = () => {
   const [cafe, setCafe] = useState<any>(null);
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [freeWorkers, setFreeWorkers] = useState<any[]>([]);
   const [menuDialog, setMenuDialog] = useState(false);
   const [newItem, setNewItem] = useState({ name: '', price: '', description: '', category: 'Lunch', available_quantity: '10' });
   const [loading, setLoading] = useState(true);
+  const [orderTab, setOrderTab] = useState('all');
+  const [paymentInfo, setPaymentInfo] = useState({ cbe: '', telebirr: '', ebirr: '' });
+  const [paymentDialog, setPaymentDialog] = useState(false);
 
   const fetchData = async () => {
     if (!user) return;
     const { data: cafeData } = await supabase.from('cafes').select('*').eq('manager_id', user.id).single();
     if (cafeData) {
       setCafe(cafeData);
-      const [menuRes, ordersRes] = await Promise.all([
+      const payInfo = (cafeData.payment_info as Record<string, string>) || {};
+      setPaymentInfo({ cbe: payInfo.cbe || '', telebirr: payInfo.telebirr || '', ebirr: payInfo.ebirr || '' });
+      
+      const [menuRes, ordersRes, workersRes] = await Promise.all([
         supabase.from('menu_items').select('*').eq('cafe_id', cafeData.id).order('created_at', { ascending: false }),
-        supabase.from('orders').select('*').eq('cafe_id', cafeData.id).order('created_at', { ascending: false }),
+        supabase.from('orders').select('*, order_items(*, menu_items(name))').eq('cafe_id', cafeData.id).order('created_at', { ascending: false }),
+        supabase.from('delivery_workers').select('*, profiles!delivery_workers_user_id_fkey(full_name)').eq('is_free', true),
       ]);
       if (menuRes.data) setMenuItems(menuRes.data);
       if (ordersRes.data) setOrders(ordersRes.data);
+      if (workersRes.data) setFreeWorkers(workersRes.data);
     }
     setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, [user]);
 
-  // Realtime orders
   useEffect(() => {
     if (!cafe) return;
     const channel = supabase
@@ -65,6 +75,7 @@ const CafeManagerDashboard = () => {
 
   const toggleAvailability = async (item: any) => {
     await supabase.from('menu_items').update({ is_available: !item.is_available }).eq('id', item.id);
+    toast.success(item.is_available ? 'Item hidden from students' : 'Item visible to students');
     fetchData();
   };
 
@@ -80,15 +91,75 @@ const CafeManagerDashboard = () => {
     fetchData();
   };
 
+  const rejectPayment = async (orderId: string) => {
+    await supabase.from('orders').update({ payment_status: 'rejected' }).eq('id', orderId);
+    toast.error('Payment rejected');
+    fetchData();
+  };
+
+  const confirmAvailability = async (orderId: string) => {
+    await supabase.from('orders').update({ status: 'available' }).eq('id', orderId);
+    toast.success('Confirmed: food is available');
+    fetchData();
+  };
+
+  const markUnavailable = async (orderId: string) => {
+    await supabase.from('orders').update({ status: 'unavailable' }).eq('id', orderId);
+    toast.info('Marked as unavailable');
+    fetchData();
+  };
+
+  const assignDelivery = async (orderId: string, workerId: string) => {
+    const { error } = await supabase.from('delivery_assignments').insert({
+      order_id: orderId,
+      worker_id: workerId,
+    });
+    if (error) { toast.error(error.message); return; }
+    await supabase.from('orders').update({ status: 'out_for_delivery' }).eq('id', orderId);
+    toast.success('Delivery assigned!');
+    fetchData();
+  };
+
+  const savePaymentInfo = async () => {
+    if (!cafe) return;
+    await supabase.from('cafes').update({ payment_info: paymentInfo }).eq('id', cafe.id);
+    toast.success('Payment info saved');
+    setPaymentDialog(false);
+    fetchData();
+  };
+
+  const filteredOrders = orderTab === 'all' ? orders :
+    orderTab === 'pending' ? orders.filter(o => o.status === 'pending_availability') :
+    orderTab === 'preparing' ? orders.filter(o => o.status === 'preparing') :
+    orderTab === 'ready' ? orders.filter(o => o.status === 'ready') :
+    orders;
+
   if (loading) return <div className="text-center py-12 text-muted-foreground">Loading...</div>;
   if (!cafe) return <div className="text-center py-12"><p className="text-muted-foreground">No cafe assigned to you yet. Contact admin.</p></div>;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-bold">{cafe.name}</h1>
-        <p className="text-muted-foreground">Manage your menu and orders</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-display font-bold">{cafe.name}</h1>
+          <p className="text-muted-foreground">Manage your menu and orders</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setPaymentDialog(true)}>💳 Payment Info</Button>
       </div>
+
+      {/* Payment Info Dialog */}
+      <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">Your Payment Accounts</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Students will see these when paying for orders.</p>
+          <div className="space-y-3">
+            <div><Label>CBE Account Number</Label><Input value={paymentInfo.cbe} onChange={e => setPaymentInfo(p => ({ ...p, cbe: e.target.value }))} placeholder="e.g. 1000123456789" /></div>
+            <div><Label>Telebirr Number</Label><Input value={paymentInfo.telebirr} onChange={e => setPaymentInfo(p => ({ ...p, telebirr: e.target.value }))} placeholder="e.g. 0911234567" /></div>
+            <div><Label>eBirr Number</Label><Input value={paymentInfo.ebirr} onChange={e => setPaymentInfo(p => ({ ...p, ebirr: e.target.value }))} placeholder="e.g. 0922345678" /></div>
+            <Button onClick={savePaymentInfo} className="w-full">Save Payment Info</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
@@ -146,13 +217,13 @@ const CafeManagerDashboard = () => {
           ) : (
             <div className="grid gap-3">
               {menuItems.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg border border-border ${!item.is_available ? 'opacity-50' : ''}`}>
                   <div>
-                    <p className="font-medium">{item.name}</p>
+                    <p className="font-medium">{item.name} {!item.is_available && <span className="text-xs text-muted-foreground">(hidden)</span>}</p>
                     <p className="text-sm text-muted-foreground">{item.category} · {item.price} ETB · Qty: {item.available_quantity}</p>
                   </div>
                   <Button variant={item.is_available ? 'outline' : 'default'} size="sm" onClick={() => toggleAvailability(item)}>
-                    {item.is_available ? 'Mark Unavailable' : 'Mark Available'}
+                    {item.is_available ? <><EyeOff className="h-3 w-3 mr-1" /> Hide</> : <><Eye className="h-3 w-3 mr-1" /> Show</>}
                   </Button>
                 </div>
               ))}
@@ -161,40 +232,86 @@ const CafeManagerDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Orders */}
+      {/* Orders with Tabs */}
       <Card>
-        <CardHeader><CardTitle className="font-display">Orders</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="font-display">Orders</CardTitle>
+          <Tabs value={orderTab} onValueChange={setOrderTab} className="mt-2">
+            <TabsList>
+              <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
+              <TabsTrigger value="pending">Pending ({orders.filter(o => o.status === 'pending_availability').length})</TabsTrigger>
+              <TabsTrigger value="preparing">Preparing ({orders.filter(o => o.status === 'preparing').length})</TabsTrigger>
+              <TabsTrigger value="ready">Ready ({orders.filter(o => o.status === 'ready').length})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </CardHeader>
         <CardContent>
-          {orders.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No orders yet.</p>
+          {filteredOrders.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No orders in this category.</p>
           ) : (
             <div className="space-y-3">
-              {orders.map(order => (
+              {filteredOrders.map(order => (
                 <div key={order.id} className="p-4 rounded-lg border border-border space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="font-mono text-sm font-bold">{order.order_code}</p>
-                      <p className="text-xs text-muted-foreground">{order.delivery_type} · {order.total_amount} ETB</p>
+                      <p className="text-xs text-muted-foreground">{order.delivery_type} · {order.total_amount} ETB · Payment: {order.payment_status}</p>
+                      {order.order_items && order.order_items.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Items: {order.order_items.map((oi: any) => `${oi.menu_items?.name} x${oi.quantity}`).join(', ')}
+                        </p>
+                      )}
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-accent text-accent-foreground">{order.status}</span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-accent text-accent-foreground">{order.status.replace(/_/g, ' ')}</span>
                   </div>
-                  {order.payment_status === 'pending' && order.payment_screenshot_url && (
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => approvePayment(order.id)}>Approve Payment</Button>
-                      <Button size="sm" variant="destructive" onClick={() => supabase.from('orders').update({ payment_status: 'rejected' }).eq('id', order.id).then(fetchData)}>Reject</Button>
+
+                  {/* Payment screenshot */}
+                  {order.payment_screenshot_url && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium">Payment Screenshot:</p>
+                      <img src={order.payment_screenshot_url} alt="Payment proof" className="max-w-xs rounded-lg border border-border" />
                     </div>
                   )}
+
+                  {/* Availability check - student asks if food available */}
                   {order.status === 'pending_availability' && (
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => updateOrderStatus(order.id, 'available')}>Available</Button>
-                      <Button size="sm" variant="outline" onClick={() => updateOrderStatus(order.id, 'unavailable')}>Not Available</Button>
+                      <Button size="sm" onClick={() => confirmAvailability(order.id)}>✅ Yes Available</Button>
+                      <Button size="sm" variant="destructive" onClick={() => markUnavailable(order.id)}>❌ Finished</Button>
                     </div>
                   )}
+
+                  {/* Payment approval */}
+                  {order.payment_status === 'pending' && order.payment_screenshot_url && order.status === 'available' && (
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => approvePayment(order.id)}>Approve Payment</Button>
+                      <Button size="sm" variant="destructive" onClick={() => rejectPayment(order.id)}>Reject</Button>
+                    </div>
+                  )}
+
                   {order.status === 'preparing' && (
                     <Button size="sm" onClick={() => updateOrderStatus(order.id, 'ready')}>Mark Ready</Button>
                   )}
+
                   {order.status === 'ready' && order.delivery_type === 'delivery' && (
-                    <Button size="sm" onClick={() => updateOrderStatus(order.id, 'out_for_delivery')}>Out for Delivery</Button>
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium flex items-center gap-1"><Truck className="h-3 w-3" /> Assign Delivery Worker:</p>
+                      {freeWorkers.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No free workers available</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {freeWorkers.map(w => (
+                            <Button key={w.id} size="sm" variant="outline" onClick={() => assignDelivery(order.id, w.id)}>
+                              {(w as any).profiles?.full_name || 'Worker'}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {order.status === 'ready' && order.delivery_type === 'pickup' && (
+                    <p className="text-xs text-primary font-medium">🔔 Student can pick up now</p>
                   )}
                 </div>
               ))}

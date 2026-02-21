@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, ShoppingBag, MapPin, Clock, Truck } from 'lucide-react';
+import { Search, ShoppingBag, MapPin, Clock, Truck, Upload, CreditCard, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const StudentDashboard = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [cafes, setCafes] = useState<any[]>([]);
   const [selectedCafe, setSelectedCafe] = useState<any>(null);
   const [menuItems, setMenuItems] = useState<any[]>([]);
@@ -20,9 +21,13 @@ const StudentDashboard = () => {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [orderDialog, setOrderDialog] = useState(false);
+  const [paymentDialog, setPaymentDialog] = useState(false);
+  const [currentOrderForPayment, setCurrentOrderForPayment] = useState<any>(null);
   const [deliveryType, setDeliveryType] = useState('pickup');
   const [deliveryInfo, setDeliveryInfo] = useState({ full_name: '', phone: '', building: '', dorm: '', floor: '', comments: '' });
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState('chapa');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,11 +42,10 @@ const StudentDashboard = () => {
 
   const fetchOrders = async () => {
     if (!user) return;
-    const { data } = await supabase.from('orders').select('*, cafes(name)').eq('student_id', user.id).order('created_at', { ascending: false });
+    const { data } = await supabase.from('orders').select('*, cafes(name, payment_info)').eq('student_id', user.id).order('created_at', { ascending: false });
     if (data) setOrders(data);
   };
 
-  // Realtime orders
   useEffect(() => {
     if (!user) return;
     const channel = supabase.channel('student-orders')
@@ -76,13 +80,13 @@ const StudentDashboard = () => {
     const { data: order, error } = await supabase.from('orders').insert({
       student_id: user.id,
       cafe_id: selectedCafe.id,
-      order_code: 'TEMP', // trigger will replace
+      order_code: 'TEMP',
       delivery_type: deliveryType,
       delivery_fee: deliveryFee,
       service_fee: serviceFee,
       total_amount: total,
       payment_method: paymentMethod,
-      delivery_full_name: deliveryInfo.full_name || null,
+      delivery_full_name: deliveryInfo.full_name || profile?.full_name || null,
       delivery_phone: deliveryInfo.phone || null,
       delivery_building: deliveryInfo.building || null,
       delivery_dorm_number: deliveryInfo.dorm || null,
@@ -92,16 +96,40 @@ const StudentDashboard = () => {
 
     if (error || !order) { toast.error(error?.message || 'Failed to place order'); return; }
 
-    // Insert order items
     const items = Object.entries(cart).map(([itemId, qty]) => {
       const mi = menuItems.find(i => i.id === itemId)!;
       return { order_id: order.id, menu_item_id: itemId, quantity: qty, unit_price: mi.price };
     });
     await supabase.from('order_items').insert(items);
 
-    toast.success(`Order placed! Code: ${order.order_code}`);
+    toast.success(`Order placed! Code: ${order.order_code}. Checking availability with cafe...`);
     setOrderDialog(false);
     setCart({});
+    fetchOrders();
+  };
+
+  const openPaymentUpload = (order: any) => {
+    setCurrentOrderForPayment(order);
+    setPaymentDialog(true);
+  };
+
+  const uploadScreenshot = async (file: File) => {
+    if (!currentOrderForPayment || !user) return;
+    setUploading(true);
+    const path = `${user.id}/${currentOrderForPayment.id}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage.from('payment-screenshots').upload(path, file);
+    if (uploadError) { toast.error('Upload failed: ' + uploadError.message); setUploading(false); return; }
+
+    const { data: urlData } = supabase.storage.from('payment-screenshots').getPublicUrl(path);
+    
+    await supabase.from('orders').update({
+      payment_screenshot_url: urlData.publicUrl,
+      payment_status: 'pending',
+    }).eq('id', currentOrderForPayment.id);
+
+    toast.success('Payment screenshot uploaded! Waiting for cafe to verify.');
+    setPaymentDialog(false);
+    setUploading(false);
     fetchOrders();
   };
 
@@ -110,12 +138,25 @@ const StudentDashboard = () => {
     i.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const getStatusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      pending_availability: 'bg-warning/10 text-warning',
+      available: 'bg-success/10 text-success',
+      unavailable: 'bg-destructive/10 text-destructive',
+      preparing: 'bg-primary/10 text-primary',
+      ready: 'bg-success/10 text-success',
+      out_for_delivery: 'bg-primary/10 text-primary',
+      delivered: 'bg-muted text-muted-foreground',
+    };
+    return colors[status] || 'bg-accent text-accent-foreground';
+  };
+
   if (loading) return <div className="text-center py-12 text-muted-foreground">Loading...</div>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-display font-bold">Hello, Student!</h1>
+        <h1 className="text-2xl font-display font-bold">Hello, {profile?.full_name || 'Student'}!</h1>
         <p className="text-muted-foreground">What are you craving today?</p>
       </div>
 
@@ -133,7 +174,7 @@ const StudentDashboard = () => {
                     <div>
                       <h3 className="font-display font-semibold">{cafe.name}</h3>
                       <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{cafe.location || 'Campus'}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{cafe.opening_time} - {cafe.closing_time}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{cafe.description}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -148,7 +189,6 @@ const StudentDashboard = () => {
             <h2 className="text-lg font-display font-semibold">{selectedCafe.name}</h2>
           </div>
 
-          {/* Search & Filter */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -162,7 +202,6 @@ const StudentDashboard = () => {
             </Select>
           </div>
 
-          {/* Menu */}
           <div className="grid md:grid-cols-2 gap-3">
             {filtered.map(item => (
               <div key={item.id} className="p-4 rounded-lg border border-border flex justify-between items-center">
@@ -187,9 +226,9 @@ const StudentDashboard = () => {
                 </div>
               </div>
             ))}
+            {filtered.length === 0 && <p className="text-center text-muted-foreground py-8 col-span-2">No items found.</p>}
           </div>
 
-          {/* Cart */}
           {Object.keys(cart).length > 0 && (
             <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 z-40">
               <div className="container mx-auto flex items-center justify-between">
@@ -197,7 +236,7 @@ const StudentDashboard = () => {
                   <p className="font-medium">{Object.values(cart).reduce((a, b) => a + b, 0)} items · {cartTotal} ETB</p>
                   <p className="text-xs text-muted-foreground">+ {serviceFee} ETB service fee</p>
                 </div>
-                <Button onClick={() => setOrderDialog(true)}>Checkout</Button>
+                <Button onClick={() => setOrderDialog(true)}>Check if Available Now</Button>
               </div>
             </div>
           )}
@@ -220,14 +259,15 @@ const StudentDashboard = () => {
 
                 {deliveryType === 'delivery' && (
                   <div className="space-y-3 p-3 rounded-lg bg-muted">
-                    <div><Label>Full Name</Label><Input value={deliveryInfo.full_name} onChange={e => setDeliveryInfo(prev => ({ ...prev, full_name: e.target.value }))} /></div>
-                    <div><Label>Phone</Label><Input value={deliveryInfo.phone} onChange={e => setDeliveryInfo(prev => ({ ...prev, phone: e.target.value }))} /></div>
-                    <div><Label>Building</Label><Input value={deliveryInfo.building} onChange={e => setDeliveryInfo(prev => ({ ...prev, building: e.target.value }))} /></div>
+                    <p className="text-sm font-semibold">Delivery Information</p>
+                    <div><Label>Full Name *</Label><Input value={deliveryInfo.full_name} onChange={e => setDeliveryInfo(prev => ({ ...prev, full_name: e.target.value }))} placeholder="Your full name" /></div>
+                    <div><Label>Phone *</Label><Input value={deliveryInfo.phone} onChange={e => setDeliveryInfo(prev => ({ ...prev, phone: e.target.value }))} placeholder="0911234567" /></div>
+                    <div><Label>Building Name *</Label><Input value={deliveryInfo.building} onChange={e => setDeliveryInfo(prev => ({ ...prev, building: e.target.value }))} placeholder="e.g. Block 5" /></div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div><Label>Dorm #</Label><Input value={deliveryInfo.dorm} onChange={e => setDeliveryInfo(prev => ({ ...prev, dorm: e.target.value }))} /></div>
-                      <div><Label>Floor</Label><Input value={deliveryInfo.floor} onChange={e => setDeliveryInfo(prev => ({ ...prev, floor: e.target.value }))} /></div>
+                      <div><Label>Dorm Number *</Label><Input value={deliveryInfo.dorm} onChange={e => setDeliveryInfo(prev => ({ ...prev, dorm: e.target.value }))} placeholder="e.g. 301" /></div>
+                      <div><Label>Floor</Label><Input value={deliveryInfo.floor} onChange={e => setDeliveryInfo(prev => ({ ...prev, floor: e.target.value }))} placeholder="e.g. 3" /></div>
                     </div>
-                    <div><Label>Comments</Label><Input value={deliveryInfo.comments} onChange={e => setDeliveryInfo(prev => ({ ...prev, comments: e.target.value }))} /></div>
+                    <div><Label>Comments</Label><Textarea value={deliveryInfo.comments} onChange={e => setDeliveryInfo(prev => ({ ...prev, comments: e.target.value }))} placeholder="Special instructions..." /></div>
                   </div>
                 )}
 
@@ -236,9 +276,12 @@ const StudentDashboard = () => {
                   <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cash">Cash on Pickup</SelectItem>
-                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="chapa">Chapa</SelectItem>
+                      <SelectItem value="empesa">eMpesa</SelectItem>
+                      <SelectItem value="cbe">CBE (Bank Transfer)</SelectItem>
                       <SelectItem value="telebirr">Telebirr</SelectItem>
+                      <SelectItem value="ebirr">eBirr</SelectItem>
+                      <SelectItem value="cash">Cash on Pickup</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -250,12 +293,67 @@ const StudentDashboard = () => {
                   <div className="flex justify-between font-bold"><span>Total</span><span>{cartTotal + serviceFee + deliveryFee} ETB</span></div>
                 </div>
 
-                <Button className="w-full" onClick={placeOrder}>Place Order</Button>
+                <Button className="w-full" onClick={placeOrder}>
+                  <CheckCircle className="h-4 w-4 mr-2" /> Check Availability & Place Order
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">The cafe will confirm if the food is available. You'll be notified to pay.</p>
               </div>
             </DialogContent>
           </Dialog>
         </>
       )}
+
+      {/* Payment Upload Dialog */}
+      <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">Upload Payment Screenshot</DialogTitle></DialogHeader>
+          {currentOrderForPayment && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-muted">
+                <p className="text-sm font-medium">Order: {currentOrderForPayment.order_code}</p>
+                <p className="text-sm font-bold text-primary">Amount: {currentOrderForPayment.total_amount} ETB</p>
+                <p className="text-xs text-muted-foreground">Method: {currentOrderForPayment.payment_method}</p>
+              </div>
+
+              {/* Show cafe payment info */}
+              {currentOrderForPayment.cafes?.payment_info && (
+                <div className="p-3 rounded-lg border border-border space-y-1">
+                  <p className="text-sm font-semibold">Pay to these accounts:</p>
+                  {(currentOrderForPayment.cafes.payment_info as any).cbe && (
+                    <p className="text-sm">🏦 CBE: <span className="font-mono font-medium">{(currentOrderForPayment.cafes.payment_info as any).cbe}</span></p>
+                  )}
+                  {(currentOrderForPayment.cafes.payment_info as any).telebirr && (
+                    <p className="text-sm">📱 Telebirr: <span className="font-mono font-medium">{(currentOrderForPayment.cafes.payment_info as any).telebirr}</span></p>
+                  )}
+                  {(currentOrderForPayment.cafes.payment_info as any).ebirr && (
+                    <p className="text-sm">💳 eBirr: <span className="font-mono font-medium">{(currentOrderForPayment.cafes.payment_info as any).ebirr}</span></p>
+                  )}
+                  {!(currentOrderForPayment.cafes.payment_info as any).cbe && !(currentOrderForPayment.cafes.payment_info as any).telebirr && (
+                    <p className="text-xs text-muted-foreground">Payment accounts not set by cafe yet.</p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <Label>Upload Screenshot</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadScreenshot(file);
+                  }}
+                />
+                <Button variant="outline" className="w-full mt-1" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                  <Upload className="h-4 w-4 mr-2" /> {uploading ? 'Uploading...' : 'Choose Screenshot'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* My Orders */}
       <Card>
@@ -266,17 +364,53 @@ const StudentDashboard = () => {
           ) : (
             <div className="space-y-3">
               {orders.map(order => (
-                <div key={order.id} className="p-4 rounded-lg border border-border">
+                <div key={order.id} className="p-4 rounded-lg border border-border space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="font-mono text-sm font-bold">{order.order_code}</p>
-                      <p className="text-xs text-muted-foreground">{(order as any).cafes?.name} · {order.delivery_type}</p>
+                      <p className="text-xs text-muted-foreground">{(order as any).cafes?.name} · {order.delivery_type} · {order.payment_method}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold">{order.total_amount} ETB</p>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground">{order.status.replace(/_/g, ' ')}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusBadge(order.status)}`}>
+                        {order.status.replace(/_/g, ' ')}
+                      </span>
                     </div>
                   </div>
+
+                  {/* Available - prompt payment */}
+                  {order.status === 'available' && !order.payment_screenshot_url && order.payment_method !== 'cash' && (
+                    <div className="p-2 rounded bg-success/10 border border-success/20">
+                      <p className="text-sm text-success font-medium">✅ Food is available! Please pay and upload screenshot.</p>
+                      <Button size="sm" className="mt-2" onClick={() => openPaymentUpload(order)}>
+                        <CreditCard className="h-3 w-3 mr-1" /> Upload Payment Screenshot
+                      </Button>
+                    </div>
+                  )}
+
+                  {order.status === 'available' && order.payment_method === 'cash' && (
+                    <p className="text-sm text-success font-medium">✅ Food is available! Pay cash on pickup.</p>
+                  )}
+
+                  {order.payment_status === 'pending' && order.payment_screenshot_url && (
+                    <p className="text-xs text-warning">⏳ Payment screenshot uploaded. Waiting for verification...</p>
+                  )}
+
+                  {order.payment_status === 'approved' && order.status === 'preparing' && (
+                    <p className="text-xs text-primary">🍳 Your food is being prepared...</p>
+                  )}
+
+                  {order.status === 'ready' && (
+                    <p className="text-sm text-success font-medium">🎉 Your food is ready! {order.delivery_type === 'pickup' ? 'Pick it up now!' : 'Delivery worker will bring it.'}</p>
+                  )}
+
+                  {order.status === 'out_for_delivery' && (
+                    <p className="text-sm text-primary font-medium">🚴 Your food is on the way!</p>
+                  )}
+
+                  {order.status === 'unavailable' && (
+                    <p className="text-sm text-destructive font-medium">❌ Sorry, this food is currently unavailable.</p>
+                  )}
                 </div>
               ))}
             </div>
