@@ -26,6 +26,7 @@ export type Database = {
           manager_id: string | null
           name: string
           opening_time: string | null
+          payment_info: Json | null
           updated_at: string
         }
         Insert: {
@@ -39,6 +40,7 @@ export type Database = {
           manager_id?: string | null
           name: string
           opening_time?: string | null
+          payment_info?: Json | null
           updated_at?: string
         }
         Update: {
@@ -52,6 +54,7 @@ export type Database = {
           manager_id?: string | null
           name?: string
           opening_time?: string | null
+          payment_info?: Json | null
           updated_at?: string
         }
         Relationships: []
