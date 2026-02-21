@@ -19,7 +19,7 @@ const DeliveryDashboard = () => {
       setWorker(w);
       const { data: a } = await supabase
         .from('delivery_assignments')
-        .select('*, orders(order_code, delivery_full_name, delivery_phone, delivery_building, delivery_dorm_number, delivery_floor, total_amount, cafes(name))')
+        .select('*, orders(order_code, delivery_type, delivery_full_name, delivery_phone, delivery_building, delivery_dorm_number, delivery_floor, delivery_comments, total_amount, delivery_fee, payment_method, cafes(name), order_items(quantity, unit_price, menu_items(name)))')
         .eq('worker_id', w.id)
         .order('assigned_at', { ascending: false });
       if (a) setAssignments(a);
@@ -108,7 +108,7 @@ const DeliveryDashboard = () => {
           ) : (
             <div className="space-y-3">
               {assignments.map(a => (
-                <div key={a.id} className="p-4 rounded-lg border border-border space-y-2">
+                <div key={a.id} className="p-4 rounded-lg border border-border space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="font-mono text-sm font-bold">{a.orders?.order_code}</p>
@@ -116,13 +116,37 @@ const DeliveryDashboard = () => {
                     </div>
                     <span className="text-xs px-2 py-1 rounded-full bg-accent text-accent-foreground">{a.status}</span>
                   </div>
-                  {a.orders && (
-                    <div className="text-sm space-y-1 bg-muted p-2 rounded">
-                      <p>📍 {a.orders.delivery_building}, Dorm {a.orders.delivery_dorm_number}{a.orders.delivery_floor ? `, Floor ${a.orders.delivery_floor}` : ''}</p>
-                      <p>📞 {a.orders.delivery_phone} · {a.orders.delivery_full_name}</p>
-                      <p>💰 {a.orders.total_amount} ETB</p>
+
+                  {/* Food items ordered */}
+                  {a.orders?.order_items && a.orders.order_items.length > 0 && (
+                    <div className="bg-primary/5 border border-primary/10 rounded-lg p-3 space-y-1">
+                      <p className="text-xs font-bold text-primary">🍽️ Food Items:</p>
+                      {a.orders.order_items.map((oi: any, i: number) => (
+                        <div key={i} className="flex justify-between text-sm">
+                          <span>{oi.menu_items?.name || 'Unknown item'}</span>
+                          <span className="font-medium">x{oi.quantity}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
+
+                  {/* Delivery details */}
+                  {a.orders && (
+                    <div className="text-sm space-y-1 bg-muted p-3 rounded-lg">
+                      <p className="text-xs font-bold mb-1">📍 Delivery To:</p>
+                      <p>👤 {a.orders.delivery_full_name}</p>
+                      <p>📞 {a.orders.delivery_phone}</p>
+                      <p>🏢 {a.orders.delivery_building}, Dorm {a.orders.delivery_dorm_number}{a.orders.delivery_floor ? `, Floor ${a.orders.delivery_floor}` : ''}</p>
+                      {a.orders.delivery_comments && <p>📝 {a.orders.delivery_comments}</p>}
+                      <div className="mt-2 pt-2 border-t border-border flex justify-between items-center">
+                        <span className="font-semibold">💰 {a.orders.total_amount} ETB</span>
+                        <span className="text-xs text-muted-foreground">
+                          🚴 Delivery fee: {a.orders.delivery_fee} ETB · {a.orders.payment_method}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     {a.status === 'pending' && (
                       <>

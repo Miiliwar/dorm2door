@@ -106,7 +106,32 @@
     font-family: 'Inter', sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', sans-serif;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+
+  .bg-glass {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-xl;
+  }
+
+  .bg-glass-dark {
+    @apply bg-black/40 backdrop-blur-lg border border-white/10 shadow-2xl;
+  }
+
+  .full-bg {
+    @apply fixed inset-0 w-full h-full object-cover -z-10;
+  }
+
+  .page-overlay {
+    @apply fixed inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70 -z-10;
+  }
+
+  .card-glass {
+    @apply bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl text-white;
   }
 }

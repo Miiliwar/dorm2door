@@ -24,6 +24,9 @@ const CafeManagerDashboard = () => {
   const [orderTab, setOrderTab] = useState('all');
   const [paymentInfo, setPaymentInfo] = useState({ cbe: '', telebirr: '', ebirr: '' });
   const [paymentDialog, setPaymentDialog] = useState(false);
+  const [assignDialog, setAssignDialog] = useState(false);
+  const [selectedOrderForAssign, setSelectedOrderForAssign] = useState<any>(null);
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -32,15 +35,17 @@ const CafeManagerDashboard = () => {
       setCafe(cafeData);
       const payInfo = (cafeData.payment_info as Record<string, string>) || {};
       setPaymentInfo({ cbe: payInfo.cbe || '', telebirr: payInfo.telebirr || '', ebirr: payInfo.ebirr || '' });
-      
-      const [menuRes, ordersRes, workersRes] = await Promise.all([
+
+      const [menuRes, ordersRes, workersRes, profilesRes] = await Promise.all([
         supabase.from('menu_items').select('*').eq('cafe_id', cafeData.id).order('created_at', { ascending: false }),
         supabase.from('orders').select('*, order_items(*, menu_items(name))').eq('cafe_id', cafeData.id).order('created_at', { ascending: false }),
-        supabase.from('delivery_workers').select('*, profiles!delivery_workers_user_id_fkey(full_name)').eq('is_free', true),
+        supabase.from('delivery_workers').select('*').eq('is_free', true),
+        supabase.from('profiles').select('user_id, full_name'),
       ]);
       if (menuRes.data) setMenuItems(menuRes.data);
       if (ordersRes.data) setOrders(ordersRes.data);
       if (workersRes.data) setFreeWorkers(workersRes.data);
+      if (profilesRes.data) setAllProfiles(profilesRes.data);
     }
     setLoading(false);
   };
@@ -109,14 +114,69 @@ const CafeManagerDashboard = () => {
     fetchData();
   };
 
-  const assignDelivery = async (orderId: string, workerId: string) => {
+  const openAssignDialog = (order: any) => {
+    setSelectedOrderForAssign(order);
+    setAssignDialog(true);
+    // Refresh free workers list
+    supabase.from('delivery_workers').select('*').eq('is_free', true)
+      .then(({ data }) => { if (data) setFreeWorkers(data); });
+  };
+
+  const assignDelivery = async (workerId: string) => {
+    if (!selectedOrderForAssign) return;
+    const order = selectedOrderForAssign;
+
     const { error } = await supabase.from('delivery_assignments').insert({
-      order_id: orderId,
+      order_id: order.id,
       worker_id: workerId,
     });
     if (error) { toast.error(error.message); return; }
-    await supabase.from('orders').update({ status: 'out_for_delivery' }).eq('id', orderId);
-    toast.success('Delivery assigned!');
+
+    await supabase.from('orders').update({ status: 'out_for_delivery' }).eq('id', order.id);
+
+    // Get worker info
+    const worker = freeWorkers.find(w => w.id === workerId);
+    const workerProfile = allProfiles.find(p => p.user_id === worker?.user_id);
+    const workerName = workerProfile?.full_name || 'Delivery Worker';
+
+    // Get worker phone from profiles
+    const { data: workerPhoneData } = await supabase.from('profiles').select('phone').eq('user_id', worker?.user_id).single();
+    const workerPhone = workerPhoneData?.phone || 'N/A';
+
+    if (worker) {
+      const itemsList = order.order_items
+        ? order.order_items.map((oi: any) => `${oi.menu_items?.name} x${oi.quantity}`).join(', ')
+        : 'N/A';
+      const deliveryDetails = [
+        `📍 ${order.delivery_building || 'N/A'}, Dorm ${order.delivery_dorm_number || 'N/A'}`,
+        order.delivery_floor ? `Floor ${order.delivery_floor}` : '',
+        `📞 ${order.delivery_phone || 'N/A'}`,
+        `👤 ${order.delivery_full_name || 'N/A'}`,
+        order.delivery_comments ? `📝 ${order.delivery_comments}` : '',
+      ].filter(Boolean).join(' | ');
+
+      // Notify the delivery worker
+      await supabase.from('notifications').insert({
+        user_id: worker.user_id,
+        title: `New Delivery: ${order.order_code}`,
+        message: `🍽️ Items: ${itemsList}\n💰 Total: ${order.total_amount} ETB (Delivery fee: ${order.delivery_fee} ETB)\n${deliveryDetails}`,
+        type: 'delivery_assignment',
+        related_order_id: order.id,
+      });
+
+      // Notify the student that a delivery worker is on the way
+      await supabase.from('notifications').insert({
+        user_id: order.student_id,
+        title: `🚴 Delivery on the way!`,
+        message: `Your order ${order.order_code} is being delivered by ${workerName} (📞 ${workerPhone}). Please be ready!`,
+        type: 'delivery_update',
+        related_order_id: order.id,
+      });
+    }
+
+    toast.success('Delivery assigned! Both worker and student have been notified.');
+    setAssignDialog(false);
+    setSelectedOrderForAssign(null);
     fetchData();
   };
 
@@ -130,21 +190,21 @@ const CafeManagerDashboard = () => {
 
   const filteredOrders = orderTab === 'all' ? orders :
     orderTab === 'pending' ? orders.filter(o => o.status === 'pending_availability') :
-    orderTab === 'preparing' ? orders.filter(o => o.status === 'preparing') :
-    orderTab === 'ready' ? orders.filter(o => o.status === 'ready') :
-    orders;
+      orderTab === 'preparing' ? orders.filter(o => o.status === 'preparing') :
+        orderTab === 'ready' ? orders.filter(o => o.status === 'ready') :
+          orders;
 
-  if (loading) return <div className="text-center py-12 text-muted-foreground">Loading...</div>;
-  if (!cafe) return <div className="text-center py-12"><p className="text-muted-foreground">No cafe assigned to you yet. Contact admin.</p></div>;
+  if (loading) return <div className="text-center py-12 text-white/60">Loading...</div>;
+  if (!cafe) return <div className="text-center py-12"><p className="text-white/60">No cafe assigned to you yet. Contact admin.</p></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-display font-bold">{cafe.name}</h1>
-          <p className="text-muted-foreground">Manage your menu and orders</p>
+          <h1 className="text-2xl font-display font-bold text-white">{cafe.name}</h1>
+          <p className="text-white/60">Manage your menu and orders</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setPaymentDialog(true)}>💳 Payment Info</Button>
+        <Button variant="outline" size="sm" onClick={() => setPaymentDialog(true)} className="border-white/20 text-white hover:bg-white/10">💳 Payment Info</Button>
       </div>
 
       {/* Payment Info Dialog */}
@@ -161,33 +221,108 @@ const CafeManagerDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { icon: ShoppingBag, label: 'Total Orders', value: orders.length },
-          { icon: Clock, label: 'Pending', value: orders.filter(o => o.status === 'pending_availability').length },
-          { icon: CheckCircle, label: 'Preparing', value: orders.filter(o => o.status === 'preparing').length },
-          { icon: XCircle, label: 'Menu Items', value: menuItems.length },
-        ].map((s, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center">
-                  <s.icon className="h-5 w-5 text-accent-foreground" />
+      {/* Assign Delivery Dialog - shows ALL info about the order */}
+      <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-display flex items-center gap-2"><Truck className="h-5 w-5" /> Assign Delivery Worker</DialogTitle></DialogHeader>
+          {selectedOrderForAssign && (
+            <div className="space-y-4">
+              {/* Order summary */}
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono text-sm font-bold">{selectedOrderForAssign.order_code}</span>
+                  <span className="text-sm font-bold text-primary">{selectedOrderForAssign.total_amount} ETB</span>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className="text-lg font-display font-bold">{s.value}</p>
+                <p className="text-xs text-muted-foreground">
+                  Delivery fee: {selectedOrderForAssign.delivery_fee} ETB · Payment: {selectedOrderForAssign.payment_method}
+                </p>
+              </div>
+
+              {/* Food items */}
+              <div className="space-y-1">
+                <p className="text-sm font-bold">🍽️ Food Items:</p>
+                <div className="p-3 rounded-lg bg-muted space-y-1">
+                  {selectedOrderForAssign.order_items && selectedOrderForAssign.order_items.length > 0 ? (
+                    selectedOrderForAssign.order_items.map((oi: any, i: number) => (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span>{oi.menu_items?.name || 'Unknown'}</span>
+                        <span className="font-medium">x{oi.quantity} · {oi.unit_price * oi.quantity} ETB</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No item details</p>
+                  )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+
+              {/* Delivery information */}
+              <div className="space-y-1">
+                <p className="text-sm font-bold">📍 Delivery Information:</p>
+                <div className="p-3 rounded-lg bg-muted space-y-1 text-sm">
+                  <p><span className="font-medium">Name:</span> {selectedOrderForAssign.delivery_full_name || 'N/A'}</p>
+                  <p><span className="font-medium">Phone:</span> {selectedOrderForAssign.delivery_phone || 'N/A'}</p>
+                  <p><span className="font-medium">Building:</span> {selectedOrderForAssign.delivery_building || 'N/A'}</p>
+                  <p><span className="font-medium">Dorm #:</span> {selectedOrderForAssign.delivery_dorm_number || 'N/A'}</p>
+                  {selectedOrderForAssign.delivery_floor && (
+                    <p><span className="font-medium">Floor:</span> {selectedOrderForAssign.delivery_floor}</p>
+                  )}
+                  {selectedOrderForAssign.delivery_comments && (
+                    <p><span className="font-medium">Comments:</span> {selectedOrderForAssign.delivery_comments}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Available delivery workers */}
+              <div className="space-y-2">
+                <p className="text-sm font-bold">🚴 Available Workers ({freeWorkers.length}):</p>
+                {freeWorkers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No free workers available right now. Try again later.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {freeWorkers.map(w => (
+                      <div key={w.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-primary/30 transition-colors">
+                        <div>
+                          <p className="font-medium text-sm">{allProfiles.find(p => p.user_id === w.user_id)?.full_name || 'Worker'}</p>
+                          <p className="text-xs text-muted-foreground">{w.total_deliveries} deliveries · ⭐ {w.rating || 'New'}</p>
+                        </div>
+                        <Button size="sm" onClick={() => assignDelivery(w.id)}>
+                          <Truck className="h-3 w-3 mr-1" /> Assign
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { icon: ShoppingBag, label: 'Total Orders', value: orders.length, color: 'text-amber-400' },
+          { icon: Clock, label: 'Pending', value: orders.filter(o => o.status === 'pending_availability').length, color: 'text-sky-400' },
+          { icon: CheckCircle, label: 'Preparing', value: orders.filter(o => o.status === 'preparing').length, color: 'text-emerald-400' },
+          { icon: XCircle, label: 'Menu Items', value: menuItems.length, color: 'text-violet-400' },
+        ].map((s, i) => (
+          <div key={i} className="card-glass rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center">
+                <s.icon className={`h-5 w-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-xs text-white/50">{s.label}</p>
+                <p className="text-lg font-display font-bold text-white">{s.value}</p>
+              </div>
+            </div>
+          </div>
         ))}
       </div>
 
       {/* Menu Management */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display">Menu Items</CardTitle>
+      <div className="card-glass rounded-xl">
+        <div className="flex items-center justify-between p-5 pb-3">
+          <h2 className="text-lg font-display font-bold text-white">Menu Items</h2>
           <Dialog open={menuDialog} onOpenChange={setMenuDialog}>
             <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add Item</Button></DialogTrigger>
             <DialogContent>
@@ -210,66 +345,83 @@ const CafeManagerDashboard = () => {
               </div>
             </DialogContent>
           </Dialog>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="px-5 pb-5">
           {menuItems.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No menu items. Add your first item!</p>
+            <p className="text-center text-white/40 py-8">No menu items. Add your first item!</p>
           ) : (
             <div className="grid gap-3">
               {menuItems.map(item => (
-                <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg border border-border ${!item.is_available ? 'opacity-50' : ''}`}>
+                <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 ${!item.is_available ? 'opacity-50' : ''}`}>
                   <div>
-                    <p className="font-medium">{item.name} {!item.is_available && <span className="text-xs text-muted-foreground">(hidden)</span>}</p>
-                    <p className="text-sm text-muted-foreground">{item.category} · {item.price} ETB · Qty: {item.available_quantity}</p>
+                    <p className="font-medium text-white">{item.name} {!item.is_available && <span className="text-xs text-white/40">(hidden)</span>}</p>
+                    <p className="text-sm text-white/50">{item.category} · {item.price} ETB · Qty: {item.available_quantity}</p>
                   </div>
-                  <Button variant={item.is_available ? 'outline' : 'default'} size="sm" onClick={() => toggleAvailability(item)}>
+                  <Button variant={item.is_available ? 'outline' : 'default'} size="sm" onClick={() => toggleAvailability(item)} className={item.is_available ? 'border-white/20 text-white hover:bg-white/10' : ''}>
                     {item.is_available ? <><EyeOff className="h-3 w-3 mr-1" /> Hide</> : <><Eye className="h-3 w-3 mr-1" /> Show</>}
                   </Button>
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Orders with Tabs */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-display">Orders</CardTitle>
+      <div className="card-glass rounded-xl">
+        <div className="p-5 pb-3">
+          <h2 className="text-lg font-display font-bold text-white">Orders</h2>
           <Tabs value={orderTab} onValueChange={setOrderTab} className="mt-2">
-            <TabsList>
+            <TabsList className="bg-white/5">
               <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
               <TabsTrigger value="pending">Pending ({orders.filter(o => o.status === 'pending_availability').length})</TabsTrigger>
               <TabsTrigger value="preparing">Preparing ({orders.filter(o => o.status === 'preparing').length})</TabsTrigger>
               <TabsTrigger value="ready">Ready ({orders.filter(o => o.status === 'ready').length})</TabsTrigger>
             </TabsList>
           </Tabs>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="px-5 pb-5">
           {filteredOrders.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No orders in this category.</p>
+            <p className="text-center text-white/40 py-8">No orders in this category.</p>
           ) : (
             <div className="space-y-3">
               {filteredOrders.map(order => (
-                <div key={order.id} className="p-4 rounded-lg border border-border space-y-3">
+                <div key={order.id} className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-mono text-sm font-bold">{order.order_code}</p>
-                      <p className="text-xs text-muted-foreground">{order.delivery_type} · {order.total_amount} ETB · Payment: {order.payment_status}</p>
+                      <p className="font-mono text-sm font-bold text-white">{order.order_code}</p>
+                      <p className="text-xs text-white/50">
+                        {order.delivery_type === 'delivery' ? '🚴 Delivery' : '🏪 Pickup'} · {order.total_amount} ETB · Payment: {order.payment_status}
+                      </p>
+                      {order.delivery_type === 'delivery' && (
+                        <p className="text-xs text-amber-400 font-medium mt-0.5">
+                          Delivery fee: {order.delivery_fee} ETB included
+                        </p>
+                      )}
                       {order.order_items && order.order_items.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-white/40 mt-1">
                           Items: {order.order_items.map((oi: any) => `${oi.menu_items?.name} x${oi.quantity}`).join(', ')}
                         </p>
                       )}
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-accent text-accent-foreground">{order.status.replace(/_/g, ' ')}</span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-white/70">{order.status.replace(/_/g, ' ')}</span>
                   </div>
+
+                  {/* Show delivery info for delivery orders */}
+                  {order.delivery_type === 'delivery' && (
+                    <div className="text-xs p-2 rounded bg-sky-500/10 border border-sky-500/20 space-y-0.5 text-white/80">
+                      <p className="font-semibold text-sky-400">📍 Delivery Details:</p>
+                      <p>👤 {order.delivery_full_name} · 📞 {order.delivery_phone}</p>
+                      <p>🏢 {order.delivery_building}, Dorm {order.delivery_dorm_number}{order.delivery_floor ? `, Floor ${order.delivery_floor}` : ''}</p>
+                      {order.delivery_comments && <p>📝 {order.delivery_comments}</p>}
+                    </div>
+                  )}
 
                   {/* Payment screenshot */}
                   {order.payment_screenshot_url && (
                     <div className="space-y-2">
-                      <p className="text-xs font-medium">Payment Screenshot:</p>
-                      <img src={order.payment_screenshot_url} alt="Payment proof" className="max-w-xs rounded-lg border border-border" />
+                      <p className="text-xs font-medium text-white/70">Payment Screenshot:</p>
+                      <img src={order.payment_screenshot_url} alt="Payment proof" className="max-w-xs rounded-lg border border-white/10" />
                     </div>
                   )}
 
@@ -294,31 +446,20 @@ const CafeManagerDashboard = () => {
                   )}
 
                   {order.status === 'ready' && order.delivery_type === 'delivery' && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium flex items-center gap-1"><Truck className="h-3 w-3" /> Assign Delivery Worker:</p>
-                      {freeWorkers.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No free workers available</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {freeWorkers.map(w => (
-                            <Button key={w.id} size="sm" variant="outline" onClick={() => assignDelivery(order.id, w.id)}>
-                              {(w as any).profiles?.full_name || 'Worker'}
-                            </Button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <Button size="sm" onClick={() => openAssignDialog(order)} className="gap-1">
+                      <Truck className="h-3 w-3" /> Assign to Delivery Worker
+                    </Button>
                   )}
 
                   {order.status === 'ready' && order.delivery_type === 'pickup' && (
-                    <p className="text-xs text-primary font-medium">🔔 Student can pick up now</p>
+                    <p className="text-xs text-amber-400 font-medium">🔔 Student can pick up now</p>
                   )}
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };

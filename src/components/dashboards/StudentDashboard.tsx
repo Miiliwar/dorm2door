@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, ShoppingBag, MapPin, Clock, Truck, Upload, CreditCard, CheckCircle } from 'lucide-react';
+import { Search, ShoppingBag, MapPin, Clock, Truck, Upload, CreditCard, CheckCircle, CalendarDays, PackageCheck, Phone, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 const StudentDashboard = () => {
@@ -40,10 +40,39 @@ const StudentDashboard = () => {
     fetchOrders();
   }, []);
 
+  const [deliveryWorkerInfo, setDeliveryWorkerInfo] = useState<Record<string, { name: string; phone: string }>>({});
+
   const fetchOrders = async () => {
     if (!user) return;
     const { data } = await supabase.from('orders').select('*, cafes(name, payment_info)').eq('student_id', user.id).order('created_at', { ascending: false });
-    if (data) setOrders(data);
+    if (data) {
+      setOrders(data);
+      // Fetch delivery worker info for orders that are out_for_delivery
+      const deliveryOrders = data.filter(o => o.status === 'out_for_delivery');
+      if (deliveryOrders.length > 0) {
+        const orderIds = deliveryOrders.map(o => o.id);
+        const { data: assignments } = await supabase
+          .from('delivery_assignments')
+          .select('order_id, worker_id, delivery_workers!inner(user_id)')
+          .in('order_id', orderIds);
+        if (assignments && assignments.length > 0) {
+          const workerUserIds = assignments.map((a: any) => a.delivery_workers?.user_id).filter(Boolean);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('user_id, full_name, phone')
+            .in('user_id', workerUserIds);
+          const infoMap: Record<string, { name: string; phone: string }> = {};
+          for (const a of assignments) {
+            const workerUserId = (a as any).delivery_workers?.user_id;
+            const prof = profiles?.find(p => p.user_id === workerUserId);
+            if (prof) {
+              infoMap[a.order_id] = { name: prof.full_name || 'Delivery Worker', phone: prof.phone || 'N/A' };
+            }
+          }
+          setDeliveryWorkerInfo(prev => ({ ...prev, ...infoMap }));
+        }
+      }
+    }
   };
 
   useEffect(() => {
@@ -71,11 +100,18 @@ const StudentDashboard = () => {
 
   const deliveryFee = deliveryType === 'delivery' ? 20 : 0;
   const serviceFee = 5;
+  const grandTotal = cartTotal + deliveryFee + serviceFee;
 
   const placeOrder = async () => {
     if (!user || !selectedCafe || Object.keys(cart).length === 0) return;
 
-    const total = cartTotal + deliveryFee + serviceFee;
+    // Validate delivery fields
+    if (deliveryType === 'delivery') {
+      if (!deliveryInfo.full_name.trim() || !deliveryInfo.phone.trim() || !deliveryInfo.building.trim() || !deliveryInfo.dorm.trim()) {
+        toast.error('Please fill in all required delivery fields (Name, Phone, Building, Dorm Number)');
+        return;
+      }
+    }
 
     const { data: order, error } = await supabase.from('orders').insert({
       student_id: user.id,
@@ -84,7 +120,7 @@ const StudentDashboard = () => {
       delivery_type: deliveryType,
       delivery_fee: deliveryFee,
       service_fee: serviceFee,
-      total_amount: total,
+      total_amount: grandTotal,
       payment_method: paymentMethod,
       delivery_full_name: deliveryInfo.full_name || profile?.full_name || null,
       delivery_phone: deliveryInfo.phone || null,
@@ -105,6 +141,8 @@ const StudentDashboard = () => {
     toast.success(`Order placed! Code: ${order.order_code}. Checking availability with cafe...`);
     setOrderDialog(false);
     setCart({});
+    setDeliveryType('pickup');
+    setDeliveryInfo({ full_name: '', phone: '', building: '', dorm: '', floor: '', comments: '' });
     fetchOrders();
   };
 
@@ -121,7 +159,7 @@ const StudentDashboard = () => {
     if (uploadError) { toast.error('Upload failed: ' + uploadError.message); setUploading(false); return; }
 
     const { data: urlData } = supabase.storage.from('payment-screenshots').getPublicUrl(path);
-    
+
     await supabase.from('orders').update({
       payment_screenshot_url: urlData.publicUrl,
       payment_status: 'pending',
@@ -151,51 +189,63 @@ const StudentDashboard = () => {
     return colors[status] || 'bg-accent text-accent-foreground';
   };
 
-  if (loading) return <div className="text-center py-12 text-muted-foreground">Loading...</div>;
+  const formatDateTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' at ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const confirmReceived = async (orderId: string) => {
+    await supabase.from('orders').update({ status: 'delivered' }).eq('id', orderId);
+    toast.success('Order confirmed as received! Thank you.');
+    fetchOrders();
+  };
+
+  if (loading) return <div className="text-center py-12 text-white/60">Loading...</div>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-display font-bold">Hello, {profile?.full_name || 'Student'}!</h1>
-        <p className="text-muted-foreground">What are you craving today?</p>
+        <h1 className="text-2xl font-display font-bold text-white">Hello, {profile?.full_name || 'Student'}!</h1>
+        <p className="text-white/60">What are you craving today?</p>
       </div>
 
       {!selectedCafe ? (
         <>
-          <h2 className="text-lg font-display font-semibold">Campus Cafes</h2>
+          <h2 className="text-lg font-display font-semibold text-white">Campus Cafes</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {cafes.map(cafe => (
-              <Card key={cafe.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => selectCafe(cafe)}>
-                <CardContent className="p-5">
+              <div key={cafe.id} className="card-glass rounded-xl cursor-pointer hover:bg-white/15 transition-all" onClick={() => selectCafe(cafe)}>
+                <div className="p-5">
                   <div className="flex items-start gap-3">
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <ShoppingBag className="h-6 w-6 text-primary" />
+                    <div className="h-12 w-12 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                      <ShoppingBag className="h-6 w-6 text-amber-400" />
                     </div>
                     <div>
-                      <h3 className="font-display font-semibold">{cafe.name}</h3>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{cafe.location || 'Campus'}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{cafe.description}</p>
+                      <h3 className="font-display font-semibold text-white">{cafe.name}</h3>
+                      <p className="text-sm text-white/50 flex items-center gap-1"><MapPin className="h-3 w-3" />{cafe.location || 'Campus'}</p>
+                      <p className="text-xs text-white/40 mt-1">{cafe.description}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         </>
       ) : (
         <>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => { setSelectedCafe(null); setMenuItems([]); setCart({}); }}>← Back</Button>
-            <h2 className="text-lg font-display font-semibold">{selectedCafe.name}</h2>
+            <Button variant="ghost" size="sm" onClick={() => { setSelectedCafe(null); setMenuItems([]); setCart({}); }} className="text-white/70 hover:text-white hover:bg-white/10">← Back</Button>
+            <h2 className="text-lg font-display font-semibold text-white">{selectedCafe.name}</h2>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Search food..." value={search} onChange={e => setSearch(e.target.value)} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <Input className="pl-9 bg-white/10 border-white/20 text-white placeholder:text-white/40" placeholder="Search food..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-40 bg-white/10 border-white/20 text-white"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {['All', 'Breakfast', 'Lunch', 'Dinner', 'Drinks', 'Snacks'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
@@ -204,21 +254,21 @@ const StudentDashboard = () => {
 
           <div className="grid md:grid-cols-2 gap-3">
             {filtered.map(item => (
-              <div key={item.id} className="p-4 rounded-lg border border-border flex justify-between items-center">
+              <div key={item.id} className="p-4 rounded-lg bg-white/5 border border-white/10 flex justify-between items-center">
                 <div>
-                  <p className="font-medium">{item.name}</p>
-                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                  <p className="font-medium text-white">{item.name}</p>
+                  <p className="text-sm text-white/50">{item.description}</p>
                   <div className="flex gap-3 mt-1">
-                    <span className="text-sm font-semibold text-primary">{item.price} ETB</span>
-                    <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{item.estimated_prep_time}min</span>
+                    <span className="text-sm font-semibold text-amber-400">{item.price} ETB</span>
+                    <span className="text-xs text-white/40 flex items-center gap-1"><Clock className="h-3 w-3" />{item.estimated_prep_time}min</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {cart[item.id] ? (
                     <>
-                      <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => removeFromCart(item.id)}>-</Button>
-                      <span className="w-6 text-center text-sm font-medium">{cart[item.id]}</span>
-                      <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => addToCart(item.id)}>+</Button>
+                      <Button size="icon" variant="outline" className="h-8 w-8 border-white/20 text-white hover:bg-white/10" onClick={() => removeFromCart(item.id)}>-</Button>
+                      <span className="w-6 text-center text-sm font-medium text-white">{cart[item.id]}</span>
+                      <Button size="icon" variant="outline" className="h-8 w-8 border-white/20 text-white hover:bg-white/10" onClick={() => addToCart(item.id)}>+</Button>
                     </>
                   ) : (
                     <Button size="sm" onClick={() => addToCart(item.id)}>Add</Button>
@@ -226,17 +276,20 @@ const StudentDashboard = () => {
                 </div>
               </div>
             ))}
-            {filtered.length === 0 && <p className="text-center text-muted-foreground py-8 col-span-2">No items found.</p>}
+            {filtered.length === 0 && <p className="text-center text-white/40 py-8 col-span-2">No items found.</p>}
           </div>
 
           {Object.keys(cart).length > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 z-40">
+            <div className="fixed bottom-0 left-0 right-0 bg-black/60 backdrop-blur-xl border-t border-white/10 p-4 z-40">
               <div className="container mx-auto flex items-center justify-between">
                 <div>
-                  <p className="font-medium">{Object.values(cart).reduce((a, b) => a + b, 0)} items · {cartTotal} ETB</p>
-                  <p className="text-xs text-muted-foreground">+ {serviceFee} ETB service fee</p>
+                  <p className="font-semibold text-white">{Object.values(cart).reduce((a, b) => a + b, 0)} items · {grandTotal} ETB</p>
+                  <p className="text-xs text-white/50">
+                    {cartTotal} food + {serviceFee} service
+                    {deliveryType === 'delivery' && ` + ${deliveryFee} delivery`}
+                  </p>
                 </div>
-                <Button onClick={() => setOrderDialog(true)}>Check if Available Now</Button>
+                <Button onClick={() => setOrderDialog(true)} className="shadow-lg shadow-primary/30">Check if Available Now</Button>
               </div>
             </div>
           )}
@@ -281,7 +334,7 @@ const StudentDashboard = () => {
                       <SelectItem value="cbe">CBE (Bank Transfer)</SelectItem>
                       <SelectItem value="telebirr">Telebirr</SelectItem>
                       <SelectItem value="ebirr">eBirr</SelectItem>
-                      <SelectItem value="cash">Cash on Pickup</SelectItem>
+                      <SelectItem value="cash">{deliveryType === 'delivery' ? 'Cash on Delivery' : 'Cash on Pickup'}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -289,8 +342,14 @@ const StudentDashboard = () => {
                 <div className="border-t border-border pt-3 space-y-1">
                   <div className="flex justify-between text-sm"><span>Subtotal</span><span>{cartTotal} ETB</span></div>
                   <div className="flex justify-between text-sm"><span>Service Fee</span><span>{serviceFee} ETB</span></div>
-                  {deliveryType === 'delivery' && <div className="flex justify-between text-sm"><span>Delivery Fee</span><span>{deliveryFee} ETB</span></div>}
-                  <div className="flex justify-between font-bold"><span>Total</span><span>{cartTotal + serviceFee + deliveryFee} ETB</span></div>
+                  {deliveryType === 'delivery' && (
+                    <div className="flex justify-between text-sm text-primary font-medium">
+                      <span>🚴 Delivery Fee</span><span>+{deliveryFee} ETB</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-lg pt-1 border-t border-border">
+                    <span>Total</span><span>{grandTotal} ETB</span>
+                  </div>
                 </div>
 
                 <Button className="w-full" onClick={placeOrder}>
@@ -356,22 +415,26 @@ const StudentDashboard = () => {
       </Dialog>
 
       {/* My Orders */}
-      <Card>
-        <CardHeader><CardTitle className="font-display">My Orders</CardTitle></CardHeader>
-        <CardContent>
+      <div className="card-glass rounded-xl">
+        <div className="p-5 pb-3"><h2 className="text-lg font-display font-bold text-white">My Orders</h2></div>
+        <div className="px-5 pb-5">
           {orders.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No orders yet. Browse a cafe to get started!</p>
+            <p className="text-center text-white/40 py-8">No orders yet. Browse a cafe to get started!</p>
           ) : (
             <div className="space-y-3">
               {orders.map(order => (
-                <div key={order.id} className="p-4 rounded-lg border border-border space-y-2">
+                <div key={order.id} className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-mono text-sm font-bold">{order.order_code}</p>
-                      <p className="text-xs text-muted-foreground">{(order as any).cafes?.name} · {order.delivery_type} · {order.payment_method}</p>
+                      <p className="font-mono text-sm font-bold text-white">{order.order_code}</p>
+                      <p className="text-xs text-white/50">{(order as any).cafes?.name} · {order.delivery_type === 'delivery' ? '🚴 Delivery' : '🏪 Pickup'} · {order.payment_method}</p>
+                      <p className="text-[11px] text-white/30 flex items-center gap-1 mt-0.5">
+                        <CalendarDays className="h-3 w-3" />
+                        {formatDateTime(order.created_at)}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold">{order.total_amount} ETB</p>
+                      <p className="text-sm font-semibold text-white">{order.total_amount} ETB</p>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusBadge(order.status)}`}>
                         {order.status.replace(/_/g, ' ')}
                       </span>
@@ -389,7 +452,7 @@ const StudentDashboard = () => {
                   )}
 
                   {order.status === 'available' && order.payment_method === 'cash' && (
-                    <p className="text-sm text-success font-medium">✅ Food is available! Pay cash on pickup.</p>
+                    <p className="text-sm text-success font-medium">✅ Food is available! Pay cash on {order.delivery_type === 'delivery' ? 'delivery' : 'pickup'}.</p>
                   )}
 
                   {order.payment_status === 'pending' && order.payment_screenshot_url && (
@@ -401,22 +464,53 @@ const StudentDashboard = () => {
                   )}
 
                   {order.status === 'ready' && (
-                    <p className="text-sm text-success font-medium">🎉 Your food is ready! {order.delivery_type === 'pickup' ? 'Pick it up now!' : 'Delivery worker will bring it.'}</p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-success font-medium">🎉 Your food is ready! {order.delivery_type === 'pickup' ? 'Pick it up now!' : 'Delivery worker will bring it.'}</p>
+                      {order.delivery_type === 'pickup' && (
+                        <Button size="sm" variant="default" className="gap-1.5" onClick={() => confirmReceived(order.id)}>
+                          <PackageCheck className="h-4 w-4" /> I Picked It Up — Confirm Received
+                        </Button>
+                      )}
+                    </div>
                   )}
 
                   {order.status === 'out_for_delivery' && (
-                    <p className="text-sm text-primary font-medium">🚴 Your food is on the way!</p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-amber-400 font-medium">🚴 Your food is on the way!</p>
+                      {deliveryWorkerInfo[order.id] && (
+                        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                          <p className="text-xs font-bold text-emerald-400 mb-1">� Your Delivery Worker:</p>
+                          <p className="text-sm text-white flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5 text-emerald-400" />
+                            {deliveryWorkerInfo[order.id].name}
+                          </p>
+                          <p className="text-sm text-white flex items-center gap-1.5">
+                            <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                            <a href={`tel:${deliveryWorkerInfo[order.id].phone}`} className="underline hover:text-emerald-400 transition-colors">
+                              {deliveryWorkerInfo[order.id].phone}
+                            </a>
+                          </p>
+                        </div>
+                      )}
+                      <Button size="sm" variant="default" className="gap-1.5" onClick={() => confirmReceived(order.id)}>
+                        <PackageCheck className="h-4 w-4" /> I Got It — Confirm Received
+                      </Button>
+                    </div>
+                  )}
+
+                  {order.status === 'delivered' && (
+                    <p className="text-xs text-white/40 flex items-center gap-1">✅ Received · {order.updated_at ? formatDateTime(order.updated_at) : ''}</p>
                   )}
 
                   {order.status === 'unavailable' && (
-                    <p className="text-sm text-destructive font-medium">❌ Sorry, this food is currently unavailable.</p>
+                    <p className="text-sm text-red-400 font-medium">❌ Sorry, this food is currently unavailable.</p>
                   )}
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
