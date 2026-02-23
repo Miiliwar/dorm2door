@@ -132,7 +132,7 @@ const DeliveryDashboard = () => {
 
                   {/* Delivery details */}
                   {a.orders && (
-                    <div className="text-sm space-y-1 bg-muted p-3 rounded-lg">
+                    <div className="text-sm space-y-1 bg-white/5 border border-white/10 p-4 rounded-xl backdrop-blur-sm">
                       <p className="text-xs font-bold mb-1">📍 Delivery To:</p>
                       <p>👤 {a.orders.delivery_full_name}</p>
                       <p>📞 {a.orders.delivery_phone}</p>

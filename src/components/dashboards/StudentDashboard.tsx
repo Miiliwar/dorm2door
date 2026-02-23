@@ -319,7 +319,7 @@ const StudentDashboard = () => {
                 </div>
 
                 {deliveryType === 'delivery' && (
-                  <div className="space-y-3 p-3 rounded-lg bg-muted">
+                  <div className="space-y-3 p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
                     <p className="text-sm font-semibold">Delivery Information</p>
                     <div><Label>Full Name *</Label><Input value={deliveryInfo.full_name} onChange={e => setDeliveryInfo(prev => ({ ...prev, full_name: e.target.value }))} placeholder="Your full name" /></div>
                     <div><Label>Phone *</Label><Input value={deliveryInfo.phone} onChange={e => setDeliveryInfo(prev => ({ ...prev, phone: e.target.value }))} placeholder="0911234567" /></div>
@@ -376,7 +376,7 @@ const StudentDashboard = () => {
           <DialogHeader><DialogTitle className="font-display">Upload Payment Screenshot</DialogTitle></DialogHeader>
           {currentOrderForPayment && (
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-muted">
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
                 <p className="text-sm font-medium">Order: {currentOrderForPayment.order_code}</p>
                 <p className="text-sm font-bold text-primary">Amount: {currentOrderForPayment.total_amount} ETB</p>
                 <p className="text-xs text-muted-foreground">Method: {currentOrderForPayment.payment_method}</p>

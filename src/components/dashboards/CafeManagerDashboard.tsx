@@ -246,7 +246,7 @@ const CafeManagerDashboard = () => {
 
       {/* Assign Delivery Dialog - shows ALL info about the order */}
       <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-[#1A1F2C] border-white/10 text-white text-white">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-[#1A1F2C] border-white/10 text-white">
           <DialogHeader><DialogTitle className="font-display flex items-center gap-2"><Truck className="h-5 w-5" /> Assign Delivery Worker</DialogTitle></DialogHeader>
           {selectedOrderForAssign && (
             <div className="space-y-4">
@@ -264,7 +264,7 @@ const CafeManagerDashboard = () => {
               {/* Food items */}
               <div className="space-y-1">
                 <p className="text-sm font-bold">🍽️ Food Items:</p>
-                <div className="p-3 rounded-lg bg-muted space-y-1">
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1 backdrop-blur-sm">
                   {selectedOrderForAssign.order_items && selectedOrderForAssign.order_items.length > 0 ? (
                     selectedOrderForAssign.order_items.map((oi: any, i: number) => (
                       <div key={i} className="flex justify-between text-sm">
@@ -281,7 +281,7 @@ const CafeManagerDashboard = () => {
               {/* Delivery information */}
               <div className="space-y-1">
                 <p className="text-sm font-bold">📍 Delivery Information:</p>
-                <div className="p-3 rounded-lg bg-muted space-y-1 text-sm">
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1 text-sm backdrop-blur-sm">
                   <p><span className="font-medium">Name:</span> {selectedOrderForAssign.delivery_full_name || 'N/A'}</p>
                   <p><span className="font-medium">Phone:</span> {selectedOrderForAssign.delivery_phone || 'N/A'}</p>
                   <p><span className="font-medium">Building:</span> {selectedOrderForAssign.delivery_building || 'N/A'}</p>
