@@ -17,26 +17,31 @@ export default defineConfig(({ mode }) => ({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'placeholder.svg'],
+      includeAssets: ['favicon.ico', 'pwa-icon.svg'],
       manifest: {
         name: 'Dorm2Door',
         short_name: 'D2D',
         description: 'Your Hunger, Our Urgency. Fresh food delivered to your dorm.',
         theme_color: '#f59e0b',
+        background_color: '#1A1F2C',
+        display: 'standalone',
         icons: [
           {
-            src: 'placeholder.svg',
+            src: 'pwa-icon.svg',
             sizes: '192x192',
-            type: 'image/svg+xml'
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
           },
           {
-            src: 'placeholder.svg',
+            src: 'pwa-icon.svg',
             sizes: '512x512',
-            type: 'image/svg+xml'
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
           }
         ]
       }
     }),
+
     mode === "development" && componentTagger()
   ].filter(Boolean),
   resolve: {

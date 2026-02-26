@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="128" fill="#1A1F2C" />
+  
+  <!-- Stylized Door / Arch -->
+  <path d="M120 400 V200 C120 120 180 80 256 80 C332 80 392 120 392 200 V400" 
+        fill="none" stroke="url(#primaryGradient)" stroke-width="24" stroke-linecap="round" opacity="0.4" />
+
+  <!-- Delivery Cloche (The Food) -->
+  <g transform="translate(256, 260)" filter="url(#glow)">
+    <!-- Base Plate -->
+    <path d="M-140 80 H140 C150 80 160 85 160 95 C160 105 150 110 140 110 H-140 C-150 110 -160 105 -160 95 C-160 85 -150 80 -140 80 Z" 
+          fill="url(#primaryGradient)" />
+    <!-- The Dome -->
+    <path d="M-130 70 C-130 -20 130 -20 130 70 Z" 
+          fill="url(#primaryGradient)" />
+    <!-- The Handle -->
+    <circle cx="0" cy="-35" r="18" fill="url(#primaryGradient)" />
+  </g>
+  
+  <!-- Subtle Door Handle on the Arch -->
+  <circle cx="392" cy="280" r="12" fill="#f59e0b" />
+</svg>
