@@ -288,19 +288,20 @@ const StudentDashboard = () => {
           </div>
 
           {Object.keys(cart).length > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 bg-black/60 backdrop-blur-xl border-t border-white/10 p-4 z-40">
+            <div className="fixed bottom-28 md:bottom-0 left-4 right-4 md:left-0 md:right-0 bg-primary/20 backdrop-blur-2xl border border-primary/30 md:border-0 md:border-t md:border-white/10 p-4 rounded-2xl md:rounded-none z-40 animate-in slide-in-from-bottom-10">
               <div className="container mx-auto flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-white">{Object.values(cart).reduce((a, b) => a + b, 0)} items · {grandTotal} ETB</p>
-                  <p className="text-xs text-white/50">
-                    {cartTotal} food + {serviceFee} service
+                  <p className="font-bold text-white text-sm md:text-base">{Object.values(cart).reduce((a, b) => a + b, 0)} items · {grandTotal} ETB</p>
+                  <p className="text-[10px] md:text-xs text-white/60">
+                    {cartTotal} + {serviceFee} fee
                     {deliveryType === 'delivery' && ` + ${deliveryFee} delivery`}
                   </p>
                 </div>
-                <Button onClick={() => setOrderDialog(true)} className="shadow-lg shadow-primary/30">Check if Available Now</Button>
+                <Button onClick={() => setOrderDialog(true)} size="sm" className="md:size-default shadow-lg shadow-primary/30 font-bold px-6">Checkout</Button>
               </div>
             </div>
           )}
+
 
           {/* Checkout Dialog */}
           <Dialog open={orderDialog} onOpenChange={setOrderDialog}>

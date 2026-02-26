@@ -134,4 +134,8 @@
   .card-glass {
     @apply bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl text-white;
   }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
 }

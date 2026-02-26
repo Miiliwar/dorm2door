@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Utensils, Bell, LogOut, Menu, X, User } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import PageLayout from '@/components/PageLayout';
+import MobileNav from './MobileNav';
+
 
 const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, profile, roles, signOut } = useAuth();
@@ -15,22 +17,21 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   return (
     <PageLayout backgroundImage="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=2070">
-      <header className="bg-black/10 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
-        <div className="container mx-auto flex items-center justify-between py-3 px-4">
-          <div className="flex items-center gap-3">
-            <button className="md:hidden text-white" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-            <Link to="/dashboard" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20 transition-transform hover:scale-105">
-                <Utensils className="h-4 w-4 text-primary-foreground" />
+      <header className="bg-black/20 backdrop-blur-2xl border-b border-white/5 sticky top-0 z-50">
+        <div className="container mx-auto flex items-center justify-between py-2 px-4 md:py-3">
+          <div className="flex items-center gap-2.5 group">
+            <Link to="/dashboard" className="flex items-center gap-2.5">
+              <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30 transition-all duration-300 group-hover:scale-105 group-hover:-rotate-3">
+                <Utensils className="h-4 w-4 md:h-5 md:w-5 text-primary-foreground" />
               </div>
-              <span className="font-display font-bold hidden sm:inline text-white">Dorm2Door</span>
+              <span className="font-display font-black text-lg hidden sm:inline text-white leading-none tracking-tight">DORM2DOOR</span>
             </Link>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/20 text-primary font-bold border border-primary/20 uppercase tracking-tighter">
+            <div className="h-4 w-[1px] bg-white/10 hidden sm:block mx-1" />
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-black border border-primary/20 uppercase tracking-widest scale-90 md:scale-100">
               {roleLabel}
             </span>
           </div>
+
           <div className="flex items-center gap-2">
             <button className="relative p-2 rounded-xl hover:bg-white/10 transition-all text-white/80 hover:text-white">
               <Bell className="h-5 w-5" />
@@ -52,12 +53,14 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
           </div>
         </div>
       </header>
-      <main className="container mx-auto p-4 md:p-6 overflow-y-auto">
+      <main className="container mx-auto p-4 md:p-6 overflow-y-auto pb-20 md:pb-6">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {children}
         </div>
       </main>
+      <MobileNav />
     </PageLayout>
+
   );
 };
 

@@ -7,24 +7,25 @@ const Landing = () => {
   return (
     <PageLayout backgroundImage="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=2070">
       {/* Nav */}
-      <nav className="bg-white/5 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
-        <div className="container mx-auto flex items-center justify-between py-4 px-4 md:px-6">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-              <Utensils className="h-5 w-5 text-primary-foreground" />
+      <nav className="bg-black/20 backdrop-blur-2xl border-b border-white/5 sticky top-0 z-50">
+        <div className="container mx-auto flex items-center justify-between py-3 px-4 md:py-4 md:px-6">
+          <div className="flex items-center gap-2.5 group cursor-pointer">
+            <div className="h-9 w-9 md:h-11 md:w-11 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
+              <Utensils className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />
             </div>
-            <span className="text-xl font-display font-bold text-white tracking-tight">Dorm2Door</span>
+            <span className="text-xl md:text-2xl font-display font-bold text-white tracking-tight">Dorm2Door</span>
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-2 md:gap-4">
             <Link to="/login">
-              <Button variant="ghost" className="text-white hover:bg-white/10">Sign In</Button>
+              <Button variant="ghost" className="text-white hover:bg-white/10 text-sm md:text-base px-3 md:px-6">Sign In</Button>
             </Link>
             <Link to="/signup">
-              <Button className="shadow-lg shadow-primary/20">Get Started</Button>
+              <Button className="shadow-xl shadow-primary/20 text-sm md:text-base font-bold rounded-full px-4 md:px-8 h-9 md:h-12">Join Now</Button>
             </Link>
           </div>
         </div>
       </nav>
+
 
       <main className="flex-grow">
         {/* Hero */}
