@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,8 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, ShoppingBag, Clock, CheckCircle, XCircle, Eye, EyeOff, Truck, Phone, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useNotifications } from '@/hooks/useNotifications';
+
 const CafeManagerDashboard = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'home';
+  const { notifications } = useNotifications();
   const [cafe, setCafe] = useState<any>(null);
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -221,13 +227,15 @@ const CafeManagerDashboard = () => {
   if (!cafe) return <div className="text-center py-12"><p className="text-white/60">No cafe assigned to you yet. Contact admin.</p></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-display font-bold text-white">{cafe.name}</h1>
           <p className="text-white/60">Your Hunger, <span className="text-primary font-bold italic">Our Urgency.</span></p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setPaymentDialog(true)} className="border-white/20 text-white hover:bg-white/10">💳 Payment Info</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setPaymentDialog(true)} className="border-white/20 text-white hover:bg-white/10">💳 Payment Info</Button>
+        </div>
       </div>
 
       {/* Payment Info Dialog */}
@@ -321,184 +329,249 @@ const CafeManagerDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { icon: ShoppingBag, label: 'Total Orders', value: orders.length, color: 'text-amber-400' },
-          { icon: Clock, label: 'Pending', value: orders.filter(o => o.status === 'pending_availability').length, color: 'text-sky-400' },
-          { icon: CheckCircle, label: 'Preparing', value: orders.filter(o => o.status === 'preparing').length, color: 'text-emerald-400' },
-          { icon: XCircle, label: 'Menu Items', value: menuItems.length, color: 'text-violet-400' },
-        ].map((s, i) => (
-          <div key={i} className="card-glass rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center">
-                <s.icon className={`h-5 w-5 ${s.color}`} />
+      {currentTab === 'home' && (
+        <div className="animate-in fade-in slide-in-from-bottom-5 duration-500">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { icon: ShoppingBag, label: 'Total Orders', value: orders.length, color: 'text-amber-400' },
+              { icon: Clock, label: 'Pending', value: orders.filter(o => o.status === 'pending_availability').length, color: 'text-sky-400' },
+              { icon: CheckCircle, label: 'Preparing', value: orders.filter(o => o.status === 'preparing').length, color: 'text-emerald-400' },
+              { icon: XCircle, label: 'Menu Items', value: menuItems.length, color: 'text-violet-400' },
+            ].map((s, i) => (
+              <div key={i} className="card-glass rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center">
+                    <s.icon className={`h-5 w-5 ${s.color}`} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-white/50">{s.label}</p>
+                    <p className="text-lg font-display font-bold text-white">{s.value}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-white/50">{s.label}</p>
-                <p className="text-lg font-display font-bold text-white">{s.value}</p>
-              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 p-6 rounded-2xl bg-primary/5 border border-primary/10 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+              <Utensils className="h-24 w-24 text-primary" />
+            </div>
+            <h2 className="text-xl font-display font-bold text-white mb-2">Welcome Back, Chef!</h2>
+            <p className="text-white/60 text-sm max-w-md">Manage your menu, track orders, and keep the campus fed. You're doing a great job!</p>
+            <div className="mt-4 flex gap-3">
+              <Button size="sm" className="font-bold" onClick={() => window.location.href = '/dashboard?tab=menu'}>Manage Menu</Button>
+              <Button size="sm" variant="outline" className="border-white/10" onClick={() => window.location.href = '/dashboard?tab=orders'}>Check Orders</Button>
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Menu Management */}
-      <div className="card-glass rounded-xl">
-        <div className="flex items-center justify-between p-5 pb-3">
-          <h2 className="text-lg font-display font-bold text-white">Menu Items</h2>
-          <Dialog open={menuDialog} onOpenChange={setMenuDialog}>
-            <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add Item</Button></DialogTrigger>
-            <DialogContent className="bg-[#1A1F2C] border-white/10 text-white text-white">
-              <DialogHeader><DialogTitle className="font-display">Add Menu Item</DialogTitle></DialogHeader>
-              <div className="space-y-3">
-                <div><Label>Name</Label><Input value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} /></div>
-                <div><Label>Price (ETB)</Label><Input type="number" value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} /></div>
-                <div><Label>Description</Label><Input value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} /></div>
-                <div>
-                  <Label>Category</Label>
-                  <Select value={newItem.category} onValueChange={v => setNewItem({ ...newItem, category: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {['Breakfast', 'Lunch', 'Dinner', 'Drinks', 'Snacks'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div><Label>Available Quantity</Label><Input type="number" value={newItem.available_quantity} onChange={e => setNewItem({ ...newItem, available_quantity: e.target.value })} /></div>
-                <Button onClick={addMenuItem} className="w-full">Add Item</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
-        <div className="px-5 pb-5">
-          {menuItems.length === 0 ? (
-            <p className="text-center text-white/40 py-8">No menu items. Add your first item!</p>
-          ) : (
-            <div className="grid gap-3">
-              {menuItems.map(item => (
-                <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 ${!item.is_available ? 'opacity-50' : ''}`}>
+      )}
+
+      {currentTab === 'menu' && (
+        <div className="card-glass rounded-xl animate-in fade-in slide-in-from-bottom-5 duration-500">
+          <div className="flex items-center justify-between p-5 pb-3">
+            <h2 className="text-lg font-display font-bold text-white">Menu Items</h2>
+            <Dialog open={menuDialog} onOpenChange={setMenuDialog}>
+              <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add Item</Button></DialogTrigger>
+              <DialogContent className="bg-[#1A1F2C] border-white/10 text-white">
+                <DialogHeader><DialogTitle className="font-display">Add Menu Item</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div><Label>Name</Label><Input value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} /></div>
+                  <div><Label>Price (ETB)</Label><Input type="number" value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} /></div>
+                  <div><Label>Description</Label><Input value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} /></div>
                   <div>
-                    <p className="font-medium text-white">{item.name} {!item.is_available && <span className="text-xs text-white/40">(hidden)</span>}</p>
-                    <p className="text-sm text-white/50">{item.category} · {item.price} ETB · Qty: {item.available_quantity}</p>
+                    <Label>Category</Label>
+                    <Select value={newItem.category} onValueChange={v => setNewItem({ ...newItem, category: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {['Breakfast', 'Lunch', 'Dinner', 'Drinks', 'Snacks'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Button variant={item.is_available ? 'outline' : 'default'} size="sm" onClick={() => toggleAvailability(item)} className={item.is_available ? 'border-white/20 text-white hover:bg-white/10' : ''}>
-                    {item.is_available ? <><EyeOff className="h-3 w-3 mr-1" /> Hide</> : <><Eye className="h-3 w-3 mr-1" /> Show</>}
-                  </Button>
+                  <div><Label>Available Quantity</Label><Input type="number" value={newItem.available_quantity} onChange={e => setNewItem({ ...newItem, available_quantity: e.target.value })} /></div>
+                  <Button onClick={addMenuItem} className="w-full">Add Item</Button>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Orders with Tabs */}
-      <div className="card-glass rounded-xl">
-        <div className="p-5 pb-3">
-          <h2 className="text-lg font-display font-bold text-white">Orders</h2>
-          <Tabs value={orderTab} onValueChange={setOrderTab} className="mt-2">
-            <TabsList className="bg-white/5">
-              <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
-              <TabsTrigger value="pending">Pending ({orders.filter(o => o.status === 'pending_availability').length})</TabsTrigger>
-              <TabsTrigger value="preparing">Preparing ({orders.filter(o => o.status === 'preparing').length})</TabsTrigger>
-              <TabsTrigger value="ready">Ready ({orders.filter(o => o.status === 'ready').length})</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        <div className="px-5 pb-5">
-          {filteredOrders.length === 0 ? (
-            <p className="text-center text-white/40 py-8">No orders in this category.</p>
-          ) : (
-            <div className="space-y-3">
-              {filteredOrders.map(order => (
-                <div key={order.id} className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
-                  <div className="flex justify-between items-start">
+              </DialogContent>
+            </Dialog>
+          </div>
+          <div className="px-5 pb-5">
+            {menuItems.length === 0 ? (
+              <p className="text-center text-white/40 py-8">No menu items. Add your first item!</p>
+            ) : (
+              <div className="grid gap-3">
+                {menuItems.map(item => (
+                  <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 ${!item.is_available ? 'opacity-50' : ''}`}>
                     <div>
-                      <p className="font-mono text-sm font-bold text-white">{order.order_code}</p>
-                      <p className="text-xs text-white/50">
-                        {order.delivery_type === 'delivery' ? '🚴 Delivery' : '🏪 Pickup'} · {order.total_amount} ETB · Payment: {order.payment_status}
-                      </p>
-                      {order.delivery_type === 'delivery' && (
-                        <p className="text-xs text-amber-400 font-medium mt-0.5">
-                          Delivery fee: {order.delivery_fee} ETB included
-                        </p>
-                      )}
-                      {order.order_items && order.order_items.length > 0 && (
-                        <p className="text-xs text-white/40 mt-1">
-                          Items: {order.order_items.map((oi: any) => `${oi.menu_items?.name} x${oi.quantity}`).join(', ')}
-                        </p>
-                      )}
+                      <p className="font-medium text-white">{item.name} {!item.is_available && <span className="text-xs text-white/40">(hidden)</span>}</p>
+                      <p className="text-sm text-white/50">{item.category} · {item.price} ETB · Qty: {item.available_quantity}</p>
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-white/70">{order.status.replace(/_/g, ' ')}</span>
-                  </div>
-
-                  {/* Show delivery info for delivery orders */}
-                  {order.delivery_type === 'delivery' && (
-                    <div className="text-xs p-2 rounded bg-sky-500/10 border border-sky-500/20 space-y-0.5 text-white/80">
-                      <p className="font-semibold text-sky-400">📍 Delivery Details:</p>
-                      <p>👤 {order.delivery_full_name} · 📞 {order.delivery_phone}</p>
-                      <p>🏢 {order.delivery_building}, Dorm {order.delivery_dorm_number}{order.delivery_floor ? `, Floor ${order.delivery_floor}` : ''}</p>
-                      {order.delivery_comments && <p>📝 {order.delivery_comments}</p>}
-                    </div>
-                  )}
-
-                  {/* Payment screenshot */}
-                  {order.payment_screenshot_url && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-white/70">Payment Screenshot:</p>
-                      <img src={order.payment_screenshot_url} alt="Payment proof" className="max-w-xs rounded-lg border border-white/10" />
-                    </div>
-                  )}
-
-                  {/* Availability check - student asks if food available */}
-                  {order.status === 'pending_availability' && (
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => confirmAvailability(order.id)}>✅ Yes Available</Button>
-                      <Button size="sm" variant="destructive" onClick={() => markUnavailable(order.id)}>❌ Finished</Button>
-                    </div>
-                  )}
-
-                  {/* Payment approval */}
-                  {order.payment_status === 'pending' && order.payment_screenshot_url && order.status === 'available' && (
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => approvePayment(order.id)}>Approve Payment</Button>
-                      <Button size="sm" variant="destructive" onClick={() => rejectPayment(order.id)}>Reject</Button>
-                    </div>
-                  )}
-
-                  {order.status === 'preparing' && (
-                    <Button size="sm" onClick={() => updateOrderStatus(order.id, 'ready')}>Mark Ready</Button>
-                  )}
-
-                  {order.status === 'ready' && order.delivery_type === 'delivery' && (
-                    <Button size="sm" onClick={() => openAssignDialog(order)} className="gap-1">
-                      <Truck className="h-3 w-3" /> Assign to Delivery Worker
+                    <Button variant={item.is_available ? 'outline' : 'default'} size="sm" onClick={() => toggleAvailability(item)} className={item.is_available ? 'border-white/20 text-white hover:bg-white/10' : ''}>
+                      {item.is_available ? <><EyeOff className="h-3 w-3 mr-1" /> Hide</> : <><Eye className="h-3 w-3 mr-1" /> Show</>}
                     </Button>
-                  )}
-
-                  {order.status === 'ready' && order.delivery_type === 'pickup' && (
-                    <p className="text-xs text-amber-400 font-medium">🔔 Student can pick up now</p>
-                  )}
-
-                  {order.status === 'out_for_delivery' && assignedWorkers[order.id] && (
-                    <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-1">
-                      <p className="text-xs font-bold text-emerald-400 mb-1">🚚 Assigned Delivery Worker:</p>
-                      <p className="text-sm text-white flex items-center gap-1.5">
-                        <UserIcon className="h-3.5 w-3.5 text-emerald-400" />
-                        {assignedWorkers[order.id].name}
-                      </p>
-                      <p className="text-sm text-white flex items-center gap-1.5">
-                        <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                        <a href={`tel:${assignedWorkers[order.id].phone}`} className="underline hover:text-emerald-400 transition-colors">
-                          {assignedWorkers[order.id].phone}
-                        </a>
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {currentTab === 'orders' && (
+        <div className="card-glass rounded-xl animate-in fade-in slide-in-from-bottom-5 duration-500">
+          <div className="p-5 pb-3">
+            <h2 className="text-lg font-display font-bold text-white">Orders</h2>
+            <Tabs value={orderTab} onValueChange={setOrderTab} className="mt-2">
+              <TabsList className="bg-white/5">
+                <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
+                <TabsTrigger value="pending">Pending ({orders.filter(o => o.status === 'pending_availability').length})</TabsTrigger>
+                <TabsTrigger value="preparing">Preparing ({orders.filter(o => o.status === 'preparing').length})</TabsTrigger>
+                <TabsTrigger value="ready">Ready ({orders.filter(o => o.status === 'ready').length})</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          <div className="px-5 pb-5">
+            {filteredOrders.length === 0 ? (
+              <p className="text-center text-white/40 py-8">No orders in this category.</p>
+            ) : (
+              <div className="space-y-3">
+                {filteredOrders.map(order => (
+                  <div key={order.id} className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-mono text-sm font-bold text-white">{order.order_code}</p>
+                        <p className="text-xs text-white/50">
+                          {order.delivery_type === 'delivery' ? '🚴 Delivery' : '🏪 Pickup'} · {order.total_amount} ETB · Payment: {order.payment_status}
+                        </p>
+                        {order.delivery_type === 'delivery' && (
+                          <p className="text-xs text-amber-400 font-medium mt-0.5">
+                            Delivery fee: {order.delivery_fee} ETB included
+                          </p>
+                        )}
+                        {order.order_items && order.order_items.length > 0 && (
+                          <p className="text-xs text-white/40 mt-1">
+                            Items: {order.order_items.map((oi: any) => `${oi.menu_items?.name} x${oi.quantity}`).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-white/70">{order.status.replace(/_/g, ' ')}</span>
+                    </div>
+
+                    {/* Show delivery info for delivery orders */}
+                    {order.delivery_type === 'delivery' && (
+                      <div className="text-xs p-2 rounded bg-sky-500/10 border border-sky-500/20 space-y-0.5 text-white/80">
+                        <p className="font-semibold text-sky-400">📍 Delivery Details:</p>
+                        <p>👤 {order.delivery_full_name} · 📞 {order.delivery_phone}</p>
+                        <p>🏢 {order.delivery_building}, Dorm {order.delivery_dorm_number}{order.delivery_floor ? `, Floor ${order.delivery_floor}` : ''}</p>
+                        {order.delivery_comments && <p>📝 {order.delivery_comments}</p>}
+                      </div>
+                    )}
+
+                    {/* Payment screenshot */}
+                    {order.payment_screenshot_url && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-white/70">Payment Screenshot:</p>
+                        <img src={order.payment_screenshot_url} alt="Payment proof" className="max-w-xs rounded-lg border border-white/10 cursor-pointer" onClick={() => window.open(order.payment_screenshot_url, '_blank')} />
+                      </div>
+                    )}
+
+                    {/* Availability check - student asks if food available */}
+                    {order.status === 'pending_availability' && (
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => confirmAvailability(order.id)}>✅ Yes Available</Button>
+                        <Button size="sm" variant="destructive" onClick={() => markUnavailable(order.id)}>❌ Finished</Button>
+                      </div>
+                    )}
+
+                    {/* Payment approval */}
+                    {order.payment_status === 'pending' && order.payment_screenshot_url && order.status === 'available' && (
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => approvePayment(order.id)}>Approve Payment</Button>
+                        <Button size="sm" variant="destructive" onClick={() => rejectPayment(order.id)}>Reject</Button>
+                      </div>
+                    )}
+
+                    {order.status === 'preparing' && (
+                      <Button size="sm" onClick={() => updateOrderStatus(order.id, 'ready')}>Mark Ready</Button>
+                    )}
+
+                    {order.status === 'ready' && order.delivery_type === 'delivery' && (
+                      <Button size="sm" onClick={() => openAssignDialog(order)} className="gap-1">
+                        <Truck className="h-3 w-3" /> Assign to Delivery Worker
+                      </Button>
+                    )}
+
+                    {order.status === 'ready' && order.delivery_type === 'pickup' && (
+                      <p className="text-xs text-amber-400 font-medium">🔔 Student can pick up now</p>
+                    )}
+
+                    {order.status === 'out_for_delivery' && assignedWorkers[order.id] && (
+                      <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                        <p className="text-xs font-bold text-emerald-400 mb-1">🚚 Assigned Delivery Worker:</p>
+                        <p className="text-sm text-white flex items-center gap-1.5">
+                          <UserIcon className="h-3.5 w-3.5 text-emerald-400" />
+                          {assignedWorkers[order.id].name}
+                        </p>
+                        <p className="text-sm text-white flex items-center gap-1.5">
+                          <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                          <a href={`tel:${assignedWorkers[order.id].phone}`} className="underline hover:text-emerald-400 transition-colors">
+                            {assignedWorkers[order.id].phone}
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'alerts' && (
+        <div className="animate-in fade-in slide-in-from-bottom-5 duration-500">
+          <div className="card-glass rounded-xl overflow-hidden border-white/5">
+            <div className="p-5 bg-white/5 border-b border-white/5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-display font-bold text-white">Notifications</h2>
+                <p className="text-xs text-white/40">Stay updated on orders and system alerts</p>
+              </div>
+              <Bell className="h-5 w-5 text-primary opacity-50" />
+            </div>
+            <div className="p-2">
+              {notifications.length === 0 ? (
+                <div className="text-center py-20">
+                  <Bell className="h-12 w-12 text-white/5 mx-auto mb-4" />
+                  <p className="text-white/30 font-display">No alerts yet</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {notifications.map((n: any) => (
+                    <div key={n.id} className={cn(
+                      "p-4 rounded-lg transition-all",
+                      n.is_read ? "bg-transparent opacity-60" : "bg-white/5 border border-white/5"
+                    )}>
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "p-2 rounded-lg shrink-0",
+                          n.type === 'order_status' ? "bg-amber-500/10 text-amber-500" : "bg-primary/10 text-primary"
+                        )}>
+                          <Bell className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-black text-white flex items-center justify-between">
+                            {n.title}
+                            <span className="font-normal text-[9px] text-white/20">{formatDateTime(n.created_at)}</span>
+                          </p>
+                          <p className="text-xs text-white/50 mt-1 leading-relaxed">{n.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

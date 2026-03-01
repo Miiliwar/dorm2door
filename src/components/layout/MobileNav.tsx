@@ -1,53 +1,58 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Home, ClipboardList, User, Bell, LayoutDashboard, Utensils, Truck, Settings } from 'lucide-react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Home, ClipboardList, User, Bell, LayoutDashboard, Utensils, Truck, Settings, UserCog } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 const MobileNav = () => {
     const location = useLocation();
+    const [searchParams] = useSearchParams();
     const { unreadCount } = useNotifications();
     const { roles } = useAuth();
+
+    const currentTab = searchParams.get('tab');
 
     const getTabs = () => {
         if (roles.includes('admin')) {
             return [
-                { icon: LayoutDashboard, label: 'Stats', path: '/dashboard' },
-                { icon: Utensils, label: 'Cafes', path: '/dashboard' },
-                { icon: User, label: 'Users', path: '/dashboard' },
-                { icon: Settings, label: 'Admin', path: '/dashboard' },
+                { icon: LayoutDashboard, label: 'Stats', path: '/dashboard?tab=dashboard' },
+                { icon: Utensils, label: 'Cafes', path: '/dashboard?tab=cafes' },
+                { icon: UserCog, label: 'Staff', path: '/dashboard?tab=managers' },
+                { icon: Truck, label: 'Fleet', path: '/dashboard?tab=workers' },
+                { icon: ClipboardList, label: 'Orders', path: '/dashboard?tab=orders' },
             ];
         }
         if (roles.includes('cafe_manager')) {
             return [
-                { icon: LayoutDashboard, label: 'Home', path: '/dashboard' },
-                { icon: Utensils, label: 'Menu', path: '/dashboard' },
-                { icon: ClipboardList, label: 'Orders', path: '/dashboard' },
-                { icon: Bell, label: 'Alerts', path: '/dashboard', badge: unreadCount },
+                { icon: LayoutDashboard, label: 'Home', path: '/dashboard?tab=home' },
+                { icon: Utensils, label: 'Menu', path: '/dashboard?tab=menu' },
+                { icon: ClipboardList, label: 'Orders', path: '/dashboard?tab=orders' },
+                { icon: Bell, label: 'Alerts', path: '/dashboard?tab=alerts', badge: unreadCount },
             ];
         }
         if (roles.includes('delivery_worker')) {
             return [
-                { icon: LayoutDashboard, label: 'Home', path: '/dashboard' },
-                { icon: Truck, label: 'Deliver', path: '/dashboard' },
-                { icon: ClipboardList, label: 'History', path: '/dashboard' },
-                { icon: Bell, label: 'Alerts', path: '/dashboard', badge: unreadCount },
+                { icon: LayoutDashboard, label: 'Home', path: '/dashboard?tab=home' },
+                { icon: Truck, label: 'Deliver', path: '/dashboard?tab=deliver' },
+                { icon: ClipboardList, label: 'History', path: '/dashboard?tab=history' },
+                { icon: Bell, label: 'Alerts', path: '/dashboard?tab=alerts', badge: unreadCount },
             ];
         }
         // General Student Tabs
         return [
-            { icon: Home, label: 'Explore', path: '/dashboard' },
-            { icon: Utensils, label: 'Cafes', path: '/dashboard' },
-            { icon: ClipboardList, label: 'My Orders', path: '/dashboard' },
-            { icon: Bell, label: 'Alerts', path: '/dashboard', badge: unreadCount },
+            { icon: Home, label: 'Explore', path: '/dashboard?tab=explore' },
+            { icon: Utensils, label: 'Cafes', path: '/dashboard?tab=cafes' },
+            { icon: ClipboardList, label: 'Orders', path: '/dashboard?tab=orders' },
+            { icon: Bell, label: 'Alerts', path: '/dashboard?tab=alerts', badge: unreadCount },
         ];
     };
 
     const tabs = getTabs();
-    const isActive = (path: string, index: number) => {
-        // For now, since most link to /dashboard, we'll mark the first one as active
-        // unless we implement search params for tabs later.
-        return index === 0;
+
+    const isActive = (tabPath: string, index: number) => {
+        const tabParam = new URLSearchParams(tabPath.split('?')[1]).get('tab');
+        if (!currentTab && index === 0) return true;
+        return currentTab === tabParam;
     };
 
     return (
@@ -96,3 +101,4 @@ const MobileNav = () => {
 };
 
 export default MobileNav;
+

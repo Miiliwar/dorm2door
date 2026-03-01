@@ -23,8 +23,9 @@ export default defineConfig(({ mode }) => ({
         short_name: 'D2D',
         description: 'Your Hunger, Our Urgency. Fresh food delivered to your dorm.',
         theme_color: '#f59e0b',
-        background_color: '#1A1F2C',
+        background_color: '#ffffff',
         display: 'standalone',
+
         icons: [
           {
             src: 'pwa-icon.svg',

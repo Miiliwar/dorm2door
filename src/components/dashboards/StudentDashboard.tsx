@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +14,8 @@ import { toast } from 'sonner';
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
+  const [searchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'explore';
   const [cafes, setCafes] = useState<any[]>([]);
   const [selectedCafe, setSelectedCafe] = useState<any>(null);
   const [menuItems, setMenuItems] = useState<any[]>([]);
@@ -29,6 +32,7 @@ const StudentDashboard = () => {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
+  const { notifications } = useNotifications();
 
   useEffect(() => {
     const fetchCafes = async () => {
@@ -204,7 +208,7 @@ const StudentDashboard = () => {
   if (loading) return <div className="text-center py-12 text-white/60">Loading...</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-6">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-display font-bold text-white">Your Hunger, <span className="text-primary">Our Urgency.</span></h1>
@@ -218,7 +222,7 @@ const StudentDashboard = () => {
         </div>
       </div>
 
-      {!selectedCafe ? (
+      {(currentTab === 'explore' || currentTab === 'cafes') && !selectedCafe && (
         <>
           <h2 className="text-lg font-display font-semibold text-white">Campus Cafes</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -240,7 +244,9 @@ const StudentDashboard = () => {
             ))}
           </div>
         </>
-      ) : (
+      )}
+
+      {(currentTab === 'explore' || currentTab === 'cafes') && selectedCafe && (
         <>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => { setSelectedCafe(null); setMenuItems([]); setCart({}); }} className="text-white/70 hover:text-white hover:bg-white/10">← Back</Button>
@@ -371,7 +377,187 @@ const StudentDashboard = () => {
         </>
       )}
 
-      {/* Payment Upload Dialog */}
+      {currentTab === 'orders' && (
+        <div className="animate-in fade-in slide-in-from-bottom-5 duration-500">
+          <div className="card-glass rounded-xl overflow-hidden border-white/5">
+            <div className="p-5 bg-white/5 border-b border-white/5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-display font-bold text-white">My Active Orders</h2>
+                <p className="text-xs text-white/40">Track your fresh food from cafe to door</p>
+              </div>
+              <ShoppingBag className="h-5 w-5 text-primary opacity-50" />
+            </div>
+            <div className="p-5">
+              {orders.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <div className="h-16 w-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
+                    <ShoppingBag className="h-8 w-8 text-white/10" />
+                  </div>
+                  <p className="text-white/40">No orders yet. Browse a cafe to get started!</p>
+                  <Button variant="outline" size="sm" className="border-white/10 text-white/60 hover:text-white" onClick={() => window.location.href = '/dashboard?tab=explore'}>Explore Cafes</Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {orders.map(order => (
+                    <div key={order.id} className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-primary/30 transition-all group">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-black text-primary bg-primary/10 px-2 py-0.5 rounded tracking-widest">{order.order_code}</span>
+                            <span className="text-[10px] text-white/30 uppercase font-bold">{(order as any).cafes?.name}</span>
+                          </div>
+                          <p className="text-xs text-white/60 font-medium">
+                            {order.delivery_type === 'delivery' ? '🚴 Home Delivery' : '🏪 Self Pickup'} · {order.payment_method}
+                          </p>
+                          <p className="text-[10px] text-white/20 flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3" />
+                            {formatDateTime(order.created_at)}
+                          </p>
+                        </div>
+                        <div className="text-right space-y-1.5">
+                          <p className="text-sm font-black text-white">{order.total_amount} ETB</p>
+                          <span className={cn(
+                            "text-[9px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest border",
+                            getStatusBadge(order.status),
+                            "border-black/20 shadow-sm"
+                          )}>
+                            {order.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Context-aware order actions/info */}
+                      <div className="mt-4 pt-4 border-t border-white/5">
+                        {order.status === 'available' && !order.payment_screenshot_url && order.payment_method !== 'cash' && (
+                          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 space-y-3 animate-pulse">
+                            <p className="text-xs text-primary font-bold flex items-center gap-1.5">
+                              <CheckCircle className="h-3.5 w-3.5" /> Food is available! Ready to pay?
+                            </p>
+                            <Button size="sm" className="w-full text-[11px] font-bold h-8" onClick={() => openPaymentUpload(order)}>
+                              <CreditCard className="h-3.5 w-3.5 mr-1.5" /> Upload Payment Screenshot
+                            </Button>
+                          </div>
+                        )}
+
+                        {order.status === 'available' && order.payment_method === 'cash' && (
+                          <div className="p-2 rounded bg-primary/5 border border-primary/10">
+                            <p className="text-xs text-primary font-medium">✅ Food confirmed! Pay cash on {order.delivery_type === 'delivery' ? 'delivery' : 'pickup'}.</p>
+                          </div>
+                        )}
+
+                        {order.payment_status === 'pending' && order.payment_screenshot_url && (
+                          <div className="flex items-center gap-2 text-amber-400">
+                            <Clock className="h-3.5 w-3.5 animate-spin-slow" />
+                            <p className="text-[11px] font-bold">Verifying payment screenshot...</p>
+                          </div>
+                        )}
+
+                        {order.status === 'ready' && (
+                          <div className="space-y-3">
+                            <p className="text-xs text-emerald-400 font-bold flex items-center gap-2">
+                              <PackageCheck className="h-4 w-4" />
+                              {order.delivery_type === 'pickup' ? 'Your food is ready for pickup!' : 'Your food is ready! Delivery is next.'}
+                            </p>
+                            {order.delivery_type === 'pickup' && (
+                              <Button size="sm" variant="default" className="w-full h-8 text-[11px] font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={() => confirmReceived(order.id)}>
+                                <CheckCircle className="h-3.5 w-3.5" /> I Picked It Up
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {order.status === 'out_for_delivery' && (
+                          <div className="space-y-3">
+                            <p className="text-xs text-amber-400 font-bold flex items-center gap-2 animate-bounce">
+                              <Truck className="h-4 w-4" /> On the way!
+                            </p>
+                            {deliveryWorkerInfo[order.id] && (
+                              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Courier Info</p>
+                                  <a href={`tel:${deliveryWorkerInfo[order.id].phone}`} className="h-7 w-7 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all">
+                                    <Phone className="h-3.5 w-3.5" />
+                                  </a>
+                                </div>
+                                <p className="text-xs text-white font-bold flex items-center gap-2">
+                                  <User className="h-3 w-3 text-emerald-400" />
+                                  {deliveryWorkerInfo[order.id].name}
+                                </p>
+                              </div>
+                            )}
+                            <Button size="sm" variant="default" className="w-full h-8 text-[11px] font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={() => confirmReceived(order.id)}>
+                              <CheckCircle className="h-3.5 w-3.5" /> I Received the Order
+                            </Button>
+                          </div>
+                        )}
+
+                        {order.status === 'delivered' && (
+                          <p className="text-[10px] text-white/20 font-medium flex items-center gap-1.5">
+                            <CheckCircle className="h-3 w-3" /> Successfully Delivered
+                          </p>
+                        )}
+
+                        {order.status === 'unavailable' && (
+                          <p className="text-[11px] text-red-400 font-bold flex items-center gap-1.5">
+                            <XCircle className="h-3.5 w-3.5" /> Restaurant says: Items out of stock.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'alerts' && (
+        <div className="animate-in fade-in slide-in-from-bottom-5 duration-500">
+          <div className="card-glass rounded-xl overflow-hidden border-white/5">
+            <div className="p-5 bg-white/5 border-b border-white/5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-display font-bold text-white">Notifications</h2>
+                <p className="text-xs text-white/40">Stay updated on everything food-related</p>
+              </div>
+              <Bell className="h-5 w-5 text-primary opacity-50" />
+            </div>
+            <div className="p-2">
+              {notifications.length === 0 ? (
+                <div className="text-center py-20">
+                  <Bell className="h-12 w-12 text-white/5 mx-auto mb-4" />
+                  <p className="text-white/30 font-display">No alerts yet</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {notifications.map((n: any) => (
+                    <div key={n.id} className={cn(
+                      "p-4 rounded-lg transition-all",
+                      n.is_read ? "bg-transparent opacity-60" : "bg-white/5 border border-white/5"
+                    )}>
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "p-2 rounded-lg shrink-0",
+                          n.type === 'order_status' ? "bg-amber-500/10 text-amber-500" : "bg-primary/10 text-primary"
+                        )}>
+                          <Bell className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-black text-white flex items-center justify-between">
+                            {n.title}
+                            <span className="font-normal text-[9px] text-white/20">{formatDateTime(n.created_at)}</span>
+                          </p>
+                          <p className="text-xs text-white/50 mt-1 leading-relaxed">{n.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
         <DialogContent className="bg-[#1A1F2C] border-white/10 text-white">
           <DialogHeader><DialogTitle className="font-display">Upload Payment Screenshot</DialogTitle></DialogHeader>
@@ -423,104 +609,35 @@ const StudentDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* My Orders */}
-      <div className="card-glass rounded-xl">
-        <div className="p-5 pb-3"><h2 className="text-lg font-display font-bold text-white">My Orders</h2></div>
-        <div className="px-5 pb-5">
-          {orders.length === 0 ? (
-            <p className="text-center text-white/40 py-8">No orders yet. Browse a cafe to get started!</p>
-          ) : (
-            <div className="space-y-3">
-              {orders.map(order => (
-                <div key={order.id} className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-2">
-                  <div className="flex justify-between items-start">
+      <div className="hidden md:block mt-8">
+        <div className="card-glass rounded-xl overflow-hidden border-white/5">
+          <div className="p-5 bg-white/5 border-b border-white/5 flex items-center justify-between">
+            <h2 className="text-lg font-display font-bold text-white">Full Order History</h2>
+            <ClipboardList className="h-5 w-5 text-white/20" />
+          </div>
+          <div className="p-5">
+            {orders.length === 0 ? (
+              <p className="text-center text-white/30 py-8">No orders yet.</p>
+            ) : (
+              <div className="grid gap-3">
+                {orders.map(order => (
+                  <div key={order.id} className="p-3 rounded-lg bg-white/5 border border-white/5 flex justify-between items-center text-xs">
                     <div>
-                      <p className="font-mono text-sm font-bold text-white">{order.order_code}</p>
-                      <p className="text-xs text-white/50">{(order as any).cafes?.name} · {order.delivery_type === 'delivery' ? '🚴 Delivery' : '🏪 Pickup'} · {order.payment_method}</p>
-                      <p className="text-[11px] text-white/30 flex items-center gap-1 mt-0.5">
-                        <CalendarDays className="h-3 w-3" />
-                        {formatDateTime(order.created_at)}
-                      </p>
+                      <span className="font-mono font-bold text-primary mr-2 uppercase">{order.order_code}</span>
+                      <span className="text-white/60">{(order as any).cafes?.name}</span>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-white">{order.total_amount} ETB</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusBadge(order.status)}`}>
-                        {order.status.replace(/_/g, ' ')}
-                      </span>
-                    </div>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-bold uppercase", getStatusBadge(order.status))}>
+                      {order.status.replace(/_/g, ' ')}
+                    </span>
                   </div>
-
-                  {/* Available - prompt payment */}
-                  {order.status === 'available' && !order.payment_screenshot_url && order.payment_method !== 'cash' && (
-                    <div className="p-2 rounded bg-success/10 border border-success/20">
-                      <p className="text-sm text-success font-medium">✅ Food is available! Please pay and upload screenshot.</p>
-                      <Button size="sm" className="mt-2" onClick={() => openPaymentUpload(order)}>
-                        <CreditCard className="h-3 w-3 mr-1" /> Upload Payment Screenshot
-                      </Button>
-                    </div>
-                  )}
-
-                  {order.status === 'available' && order.payment_method === 'cash' && (
-                    <p className="text-sm text-success font-medium">✅ Food is available! Pay cash on {order.delivery_type === 'delivery' ? 'delivery' : 'pickup'}.</p>
-                  )}
-
-                  {order.payment_status === 'pending' && order.payment_screenshot_url && (
-                    <p className="text-xs text-warning">⏳ Payment screenshot uploaded. Waiting for verification...</p>
-                  )}
-
-                  {order.payment_status === 'approved' && order.status === 'preparing' && (
-                    <p className="text-xs text-primary">🍳 Your food is being prepared...</p>
-                  )}
-
-                  {order.status === 'ready' && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-success font-medium">🎉 Your food is ready! {order.delivery_type === 'pickup' ? 'Pick it up now!' : 'Delivery worker will bring it.'}</p>
-                      {order.delivery_type === 'pickup' && (
-                        <Button size="sm" variant="default" className="gap-1.5" onClick={() => confirmReceived(order.id)}>
-                          <PackageCheck className="h-4 w-4" /> I Picked It Up — Confirm Received
-                        </Button>
-                      )}
-                    </div>
-                  )}
-
-                  {order.status === 'out_for_delivery' && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-amber-400 font-medium">🚴 Your food is on the way!</p>
-                      {deliveryWorkerInfo[order.id] && (
-                        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-1">
-                          <p className="text-xs font-bold text-emerald-400 mb-1">� Your Delivery Worker:</p>
-                          <p className="text-sm text-white flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-emerald-400" />
-                            {deliveryWorkerInfo[order.id].name}
-                          </p>
-                          <p className="text-sm text-white flex items-center gap-1.5">
-                            <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                            <a href={`tel:${deliveryWorkerInfo[order.id].phone}`} className="underline hover:text-emerald-400 transition-colors">
-                              {deliveryWorkerInfo[order.id].phone}
-                            </a>
-                          </p>
-                        </div>
-                      )}
-                      <Button size="sm" variant="default" className="gap-1.5" onClick={() => confirmReceived(order.id)}>
-                        <PackageCheck className="h-4 w-4" /> I Got It — Confirm Received
-                      </Button>
-                    </div>
-                  )}
-
-                  {order.status === 'delivered' && (
-                    <p className="text-xs text-white/40 flex items-center gap-1">✅ Received · {order.updated_at ? formatDateTime(order.updated_at) : ''}</p>
-                  )}
-
-                  {order.status === 'unavailable' && (
-                    <p className="text-sm text-red-400 font-medium">❌ Sorry, this food is currently unavailable.</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
+
   );
 };
 

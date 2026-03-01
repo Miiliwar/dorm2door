@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,8 @@ import { toast } from 'sonner';
 type SidebarItem = 'dashboard' | 'cafes' | 'managers' | 'workers' | 'orders';
 
 const AdminDashboard = () => {
-  const [activeSection, setActiveSection] = useState<SidebarItem>('dashboard');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeSection = (searchParams.get('tab') as SidebarItem) || 'dashboard';
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [cafes, setCafes] = useState<any[]>([]);
@@ -233,7 +235,7 @@ const AdminDashboard = () => {
   ];
 
   const handleNav = (id: SidebarItem) => {
-    setActiveSection(id);
+    setSearchParams({ tab: id });
     setSidebarOpen(false);
   };
 
@@ -265,9 +267,8 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* Quick actions */}
       <div className="grid md:grid-cols-3 gap-4">
-        <button onClick={() => setActiveSection('cafes')} className="card-glass rounded-xl p-5 text-left hover:bg-white/15 transition-all group">
+        <button onClick={() => setSearchParams({ tab: 'cafes' })} className="card-glass rounded-xl p-5 text-left hover:bg-white/15 transition-all group">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -281,7 +282,7 @@ const AdminDashboard = () => {
             <ChevronRight className="h-4 w-4 text-white/30 group-hover:text-white/60 transition-colors" />
           </div>
         </button>
-        <button onClick={() => setActiveSection('workers')} className="card-glass rounded-xl p-5 text-left hover:bg-white/15 transition-all group">
+        <button onClick={() => setSearchParams({ tab: 'workers' })} className="card-glass rounded-xl p-5 text-left hover:bg-white/15 transition-all group">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-sky-500/10 flex items-center justify-center">
@@ -295,7 +296,7 @@ const AdminDashboard = () => {
             <ChevronRight className="h-4 w-4 text-white/30 group-hover:text-white/60 transition-colors" />
           </div>
         </button>
-        <button onClick={() => setActiveSection('orders')} className="card-glass rounded-xl p-5 text-left hover:bg-white/15 transition-all group">
+        <button onClick={() => setSearchParams({ tab: 'orders' })} className="card-glass rounded-xl p-5 text-left hover:bg-white/15 transition-all group">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -315,7 +316,7 @@ const AdminDashboard = () => {
       <div className="card-glass rounded-xl">
         <div className="p-5 pb-3 flex items-center justify-between">
           <h2 className="text-base font-display font-bold text-white">Latest Orders</h2>
-          <button onClick={() => setActiveSection('orders')} className="text-xs text-primary hover:underline">View all →</button>
+          <button onClick={() => setSearchParams({ tab: 'orders' })} className="text-xs text-primary hover:underline">View all →</button>
         </div>
         <div className="px-5 pb-5 space-y-2">
           {orders.slice(0, 5).map(order => (
