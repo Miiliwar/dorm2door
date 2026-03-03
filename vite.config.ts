@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'pwa-icon.svg'],
+      includeAssets: ['favicon.ico', 'pwa-icon.svg', 'pwa-icon.png'],
       manifest: {
         name: 'Dorm2Door',
         short_name: 'Dorm2Door',
@@ -34,9 +34,9 @@ export default defineConfig(({ mode }) => ({
             purpose: 'any maskable'
           },
           {
-            src: 'pwa-icon.svg',
+            src: 'pwa-icon.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           }
         ]
