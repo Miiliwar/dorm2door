@@ -28,9 +28,9 @@ export default defineConfig(({ mode }) => ({
 
         icons: [
           {
-            src: 'pwa-icon.svg',
+            src: 'pwa-icon.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           },
           {
