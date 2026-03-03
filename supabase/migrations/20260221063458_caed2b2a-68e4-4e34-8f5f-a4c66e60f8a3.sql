@@ -187,7 +187,7 @@ LANGUAGE plpgsql
 SET search_path = public
 AS $$
 BEGIN
-  NEW.order_code := 'DORM2DOOR' || LPAD(FLOOR(RANDOM() * 99999)::TEXT, 5, '0');
+  NEW.order_code := 'D2D' || LPAD(FLOOR(RANDOM() * 99999)::TEXT, 5, '0');
   RETURN NEW;
 END;
 $$;

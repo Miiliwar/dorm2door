@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ['favicon.ico', 'pwa-icon.svg'],
       manifest: {
         name: 'Dorm2Door',
-        short_name: 'Dorm2Door',
+        short_name: 'D2D',
         description: 'Your Hunger, Our Urgency. Fresh food delivered to your dorm.',
         theme_color: '#f59e0b',
         background_color: '#ffffff',
