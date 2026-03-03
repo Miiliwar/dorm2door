@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Search, ShoppingBag, MapPin, Clock, Truck, Upload, CreditCard, CheckCircle, CalendarDays, PackageCheck, Phone, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNotifications } from '@/hooks/useNotifications';
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
