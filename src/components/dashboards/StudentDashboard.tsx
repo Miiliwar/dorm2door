@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, ShoppingBag, MapPin, Clock, Truck, Upload, CreditCard, CheckCircle, CalendarDays, PackageCheck, Phone, User } from 'lucide-react';
+import { Search, ShoppingBag, MapPin, Clock, Truck, Upload, CreditCard, CheckCircle, CalendarDays, PackageCheck, Phone, User, Bell, XCircle, Utensils, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNotifications } from '@/hooks/useNotifications';
+import { cn } from '@/lib/utils';
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();

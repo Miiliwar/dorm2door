@@ -10,10 +10,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ShoppingBag, Clock, CheckCircle, XCircle, Eye, EyeOff, Truck, Phone, User as UserIcon } from 'lucide-react';
+import { Plus, ShoppingBag, Clock, CheckCircle, XCircle, Eye, EyeOff, Truck, Phone, User as UserIcon, Bell, Utensils } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useNotifications } from '@/hooks/useNotifications';
+import { cn, formatDateTime } from '@/lib/utils';
 
 const CafeManagerDashboard = () => {
   const { user } = useAuth();
